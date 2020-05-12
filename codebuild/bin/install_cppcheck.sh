@@ -34,3 +34,5 @@ cd cppcheck
 git checkout 1.88
 
 make -j $JOBS
+
+rm -rf .git

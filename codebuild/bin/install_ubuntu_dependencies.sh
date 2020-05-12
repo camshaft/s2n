@@ -39,9 +39,6 @@ if ! type prlimit > /dev/null && [[ ! -d "$PRLIMIT_INSTALL_DIR" ]]; then
     sudo codebuild/bin/install_prlimit.sh "$(mktemp -d)" "$PRLIMIT_INSTALL_DIR";
 fi
 
-if [[ "$TESTS" == "ctverif" || "$TESTS" == "ALL" ]] ; then
-    codebuild/bin/install_ctverif_dependencies.sh ; fi
-
 if [[ "$TESTS" == "ctverif" || "$TESTS" == "ALL" ]] && [[ ! -d "$CTVERIF_INSTALL_DIR" ]]; then
     mkdir -p "$CTVERIF_INSTALL_DIR" && codebuild/bin/install_ctverif.sh "$CTVERIF_INSTALL_DIR" > /dev/null ; fi
 
