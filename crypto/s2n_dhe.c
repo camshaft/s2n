@@ -25,6 +25,7 @@
 #include "crypto/s2n_dhe.h"
 #include "crypto/s2n_openssl.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_blob.h"
 #include "utils/s2n_mem.h"
@@ -112,7 +113,7 @@ static int s2n_set_p_g_Ys_dh_params(struct s2n_dh_params *dh_params, struct s2n_
 	* values that have been passed in should not be freed directly after this function has been called
 	*/
         GUARD_OSSL(DH_set0_pqg(dh_params->dh, bn_p, NULL, bn_g), S2N_ERR_DH_PARAMS_CREATE);
-        
+
 	/* Same as DH_set0_pqg */
         GUARD_OSSL(DH_set0_key(dh_params->dh, bn_Ys, NULL), S2N_ERR_DH_PARAMS_CREATE);
     #else
@@ -214,20 +215,20 @@ int s2n_dh_compute_shared_secret_as_client(struct s2n_dh_params *server_dh_param
     GUARD(s2n_dh_params_check(server_dh_params));
     GUARD(s2n_dh_params_copy(server_dh_params, &client_params));
     GUARD(s2n_dh_generate_ephemeral_key(&client_params));
-    GUARD(s2n_alloc(shared_key, DH_size(server_dh_params->dh)));
+    GUARD_AS_POSIX(s2n_alloc(shared_key, DH_size(server_dh_params->dh)));
 
     const BIGNUM *client_pub_key_bn = s2n_get_Ys_dh_param(&client_params);
     client_pub_key_size = BN_num_bytes(client_pub_key_bn);
     GUARD(s2n_stuffer_write_uint16(Yc_out, client_pub_key_size));
     client_pub_key = s2n_stuffer_raw_write(Yc_out, client_pub_key_size);
     if (client_pub_key == NULL) {
-        GUARD(s2n_free(shared_key));
+        GUARD_AS_POSIX(s2n_free(shared_key));
         GUARD(s2n_dh_params_free(&client_params));
         S2N_ERROR(S2N_ERR_DH_WRITING_PUBLIC_KEY);
     }
 
     if (BN_bn2bin(client_pub_key_bn, client_pub_key) != client_pub_key_size) {
-        GUARD(s2n_free(shared_key));
+        GUARD_AS_POSIX(s2n_free(shared_key));
         GUARD(s2n_dh_params_free(&client_params));
         S2N_ERROR(S2N_ERR_DH_COPYING_PUBLIC_KEY);
     }
@@ -236,7 +237,7 @@ int s2n_dh_compute_shared_secret_as_client(struct s2n_dh_params *server_dh_param
     const BIGNUM *server_pub_key_bn = s2n_get_Ys_dh_param(server_dh_params);
     shared_key_size = DH_compute_key(shared_key->data, server_pub_key_bn, client_params.dh);
     if (shared_key_size < 0) {
-        GUARD(s2n_free(shared_key));
+        GUARD_AS_POSIX(s2n_free(shared_key));
         GUARD(s2n_dh_params_free(&client_params));
         S2N_ERROR(S2N_ERR_DH_SHARED_SECRET);
     }
@@ -264,7 +265,7 @@ int s2n_dh_compute_shared_secret_as_server(struct s2n_dh_params *server_dh_param
 
     pub_key = BN_bin2bn((const unsigned char *)Yc.data, Yc.size, NULL);
     notnull_check(pub_key);
-    GUARD(s2n_alloc(shared_key, DH_size(server_dh_params->dh)));
+    GUARD_AS_POSIX(s2n_alloc(shared_key, DH_size(server_dh_params->dh)));
 
     shared_key_size = DH_compute_key(shared_key->data, pub_key, server_dh_params->dh);
     if (shared_key_size <= 0) {

@@ -33,6 +33,7 @@
 
 #include "stuffer/s2n_stuffer.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_random.h"
 
@@ -121,7 +122,7 @@ static int s2n_server_hello_parse(struct s2n_connection *conn)
         S2N_ERROR_IF(extensions_size > s2n_stuffer_data_available(in), S2N_ERR_BAD_MESSAGE);
 
         struct s2n_blob extensions = {0};
-        GUARD(s2n_blob_init(&extensions, s2n_stuffer_raw_read(in, extensions_size), extensions_size));
+        GUARD_AS_POSIX(s2n_blob_init(&extensions, s2n_stuffer_raw_read(in, extensions_size), extensions_size));
         notnull_check(extensions.data);
 
         GUARD(s2n_server_extensions_recv(conn, &extensions));
@@ -166,7 +167,7 @@ static int s2n_server_hello_parse(struct s2n_connection *conn)
             memset_check((uint8_t *)conn->secure.master_secret, 0, S2N_TLS_SECRET_LEN);
 
             /* Erase client session ticket which might have been set for session resumption */
-            GUARD(s2n_free(&conn->client_ticket));
+            GUARD_AS_POSIX(s2n_free(&conn->client_ticket));
         }
     }
 
@@ -243,15 +244,15 @@ int s2n_server_hello_send(struct s2n_connection *conn)
 
     struct s2n_stuffer server_random = {0};
     struct s2n_blob b = {0};
-    GUARD(s2n_blob_init(&b, conn->secure.server_random, S2N_TLS_RANDOM_DATA_LEN));
+    GUARD_AS_POSIX(s2n_blob_init(&b, conn->secure.server_random, S2N_TLS_RANDOM_DATA_LEN));
 
     /* Create the server random data */
     GUARD(s2n_stuffer_init(&server_random, &b));
 
     struct s2n_blob rand_data = {0};
-    GUARD(s2n_blob_init(&rand_data, s2n_stuffer_raw_write(&server_random, S2N_TLS_RANDOM_DATA_LEN), S2N_TLS_RANDOM_DATA_LEN));
+    GUARD_AS_POSIX(s2n_blob_init(&rand_data, s2n_stuffer_raw_write(&server_random, S2N_TLS_RANDOM_DATA_LEN), S2N_TLS_RANDOM_DATA_LEN));
     notnull_check(rand_data.data);
-    GUARD(s2n_get_public_random_data(&rand_data));
+    GUARD_AS_POSIX(s2n_get_public_random_data(&rand_data));
 
     /* Add a downgrade detection mechanism if required */
     GUARD(s2n_server_add_downgrade_mechanism(conn));

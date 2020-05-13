@@ -42,6 +42,7 @@
 
 #include "utils/s2n_bitmap.h"
 #include "utils/s2n_random.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 typedef char s2n_tls_extension_mask[8192];
@@ -141,7 +142,7 @@ int s2n_client_hello_free_parsed_extensions(struct s2n_client_hello *client_hell
 {
     notnull_check(client_hello);
     if (client_hello->parsed_extensions != NULL) {
-        GUARD(s2n_array_free_p(&client_hello->parsed_extensions));
+        GUARD_AS_POSIX(s2n_array_free_p(&client_hello->parsed_extensions));
     }
     return 0;
 }
@@ -390,14 +391,14 @@ int s2n_client_hello_send(struct s2n_connection *conn)
     uint8_t client_protocol_version[S2N_TLS_PROTOCOL_VERSION_LEN] = {0};
 
     struct s2n_blob b = {0};
-    GUARD(s2n_blob_init(&b, conn->secure.client_random, S2N_TLS_RANDOM_DATA_LEN));
+    GUARD_AS_POSIX(s2n_blob_init(&b, conn->secure.client_random, S2N_TLS_RANDOM_DATA_LEN));
     /* Create the client random data */
     GUARD(s2n_stuffer_init(&client_random, &b));
 
     struct s2n_blob r = {0};
-    GUARD(s2n_blob_init(&r, s2n_stuffer_raw_write(&client_random, S2N_TLS_RANDOM_DATA_LEN), S2N_TLS_RANDOM_DATA_LEN));
+    GUARD_AS_POSIX(s2n_blob_init(&r, s2n_stuffer_raw_write(&client_random, S2N_TLS_RANDOM_DATA_LEN), S2N_TLS_RANDOM_DATA_LEN));
     notnull_check(r.data);
-    GUARD(s2n_get_public_random_data(&r));
+    GUARD_AS_POSIX(s2n_get_public_random_data(&r));
 
     uint8_t reported_protocol_version = MIN(conn->client_protocol_version, S2N_TLS12);
     client_protocol_version[0] = reported_protocol_version / 10;
@@ -412,8 +413,8 @@ int s2n_client_hello_send(struct s2n_connection *conn)
      */
     if (conn->session_id_len == 0 && conn->config->use_tickets) {
         struct s2n_blob session_id = {0};
-	GUARD(s2n_blob_init(&session_id, conn->session_id, S2N_TLS_SESSION_ID_MAX_LEN));
-        GUARD(s2n_get_public_random_data(&session_id));
+	    GUARD_AS_POSIX(s2n_blob_init(&session_id, conn->session_id, S2N_TLS_SESSION_ID_MAX_LEN));
+        GUARD_AS_POSIX(s2n_get_public_random_data(&session_id));
         conn->session_id_len = S2N_TLS_SESSION_ID_MAX_LEN;
     }
 
@@ -505,7 +506,7 @@ int s2n_sslv2_client_hello_recv(struct s2n_connection *conn)
     }
 
     struct s2n_blob b = {0};
-    GUARD(s2n_blob_init(&b, conn->secure.client_random, S2N_TLS_RANDOM_DATA_LEN));
+    GUARD_AS_POSIX(s2n_blob_init(&b, conn->secure.client_random, S2N_TLS_RANDOM_DATA_LEN));
 
     b.data += S2N_TLS_RANDOM_DATA_LEN - challenge_length;
     b.size -= S2N_TLS_RANDOM_DATA_LEN - challenge_length;

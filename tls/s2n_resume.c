@@ -17,10 +17,11 @@
 #include <s2n.h>
 
 #include "stuffer/s2n_stuffer.h"
-#include "utils/s2n_safety.h"
 #include "utils/s2n_blob.h"
 #include "utils/s2n_random.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_set.h"
+#include "utils/s2n_safety.h"
 
 #include "tls/s2n_cipher_suites.h"
 #include "tls/s2n_connection.h"
@@ -166,7 +167,7 @@ static int s2n_client_deserialize_with_session_ticket(struct s2n_connection *con
         S2N_ERROR(S2N_ERR_INVALID_SERIALIZED_SESSION_STATE);
     }
 
-    GUARD(s2n_realloc(&conn->client_ticket, session_ticket_len));
+    GUARD_AS_POSIX(s2n_realloc(&conn->client_ticket, session_ticket_len));
     GUARD(s2n_stuffer_read(from, &conn->client_ticket));
 
     GUARD(s2n_client_deserialize_session_state(conn, from));
@@ -200,7 +201,7 @@ int s2n_resume_from_cache(struct s2n_connection *conn)
 
     uint8_t data[S2N_TICKET_SIZE_IN_BYTES] = { 0 };
     struct s2n_blob entry = {0};
-    GUARD(s2n_blob_init(&entry, data, S2N_TICKET_SIZE_IN_BYTES));
+    GUARD_AS_POSIX(s2n_blob_init(&entry, data, S2N_TICKET_SIZE_IN_BYTES));
     uint64_t size = entry.size;
     GUARD_NONBLOCKING(conn->config->cache_retrieve(conn, conn->config->cache_retrieve_data, conn->session_id, conn->session_id_len, entry.data, &size));
 
@@ -218,7 +219,7 @@ int s2n_store_to_cache(struct s2n_connection *conn)
 {
     uint8_t data[S2N_TICKET_SIZE_IN_BYTES] = { 0 };
     struct s2n_blob entry = {0};
-    GUARD(s2n_blob_init(&entry, data, S2N_TICKET_SIZE_IN_BYTES));
+    GUARD_AS_POSIX(s2n_blob_init(&entry, data, S2N_TICKET_SIZE_IN_BYTES));
     struct s2n_stuffer to = {0};
 
     /* session_id_len should always be >0 since either the Client provided a SessionId or the Server generated a new
@@ -240,8 +241,8 @@ int s2n_connection_set_session(struct s2n_connection *conn, const uint8_t *sessi
     notnull_check(conn);
     notnull_check(session);
 
-    DEFER_CLEANUP(struct s2n_blob session_data = {0}, s2n_free);
-    GUARD(s2n_alloc(&session_data, length));
+    DEFER_CLEANUP(struct s2n_blob session_data = {0}, s2n_free_deferred);
+    GUARD_AS_POSIX(s2n_alloc(&session_data, length));
     memcpy(session_data.data, session, length);
 
     struct s2n_stuffer from = {0};
@@ -265,8 +266,8 @@ int s2n_connection_get_session(struct s2n_connection *conn, uint8_t *session, si
     S2N_ERROR_IF(len > max_length, S2N_ERR_SERIALIZED_SESSION_STATE_TOO_LONG);
 
     struct s2n_blob serialized_data = {0};
-    GUARD(s2n_blob_init(&serialized_data, session, len));
-    GUARD(s2n_blob_zero(&serialized_data));
+    GUARD_AS_POSIX(s2n_blob_init(&serialized_data, session, len));
+    GUARD_AS_POSIX(s2n_blob_zero(&serialized_data));
 
     struct s2n_stuffer to = {0};
     GUARD(s2n_stuffer_init(&to, &serialized_data));
@@ -357,7 +358,9 @@ int s2n_compute_weight_of_encrypt_decrypt_keys(struct s2n_config *config,
     }
 
     /* Pick a random number in [0, 1). Using 53 bits (IEEE 754 double-precision floats). */
-    double random = s2n_public_random(pow(2, 53)) / pow(2, 53);
+    int64_t random_int = 0;
+    GUARD_AS_POSIX(s2n_public_random(pow(2, 53), &random_int));
+    double random = (double)random_int / (double)pow(2, 53);
 
     /* Compute cumulative weight of encrypt-decrypt keys */
     for (int i = 0; i < num_encrypt_decrypt_keys; i++) {
@@ -446,16 +449,16 @@ int s2n_encrypt_session_ticket(struct s2n_connection *conn, struct s2n_stuffer *
 
     uint8_t iv_data[S2N_TLS_GCM_IV_LEN] = { 0 };
     struct s2n_blob iv = {0};
-    GUARD(s2n_blob_init(&iv, iv_data, sizeof(iv_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&iv, iv_data, sizeof(iv_data)));
 
     uint8_t aad_data[S2N_TICKET_AAD_LEN] = { 0 };
     struct s2n_blob aad_blob = {0};
-    GUARD(s2n_blob_init(&aad_blob, aad_data, sizeof(aad_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&aad_blob, aad_data, sizeof(aad_data)));
     struct s2n_stuffer aad = {0};
 
     uint8_t s_data[S2N_STATE_SIZE_IN_BYTES + S2N_TLS_GCM_TAG_LEN] = { 0 };
     struct s2n_blob state_blob = {0};
-    GUARD(s2n_blob_init(&state_blob, s_data, sizeof(s_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&state_blob, s_data, sizeof(s_data)));
     struct s2n_stuffer state = {0};
 
     key = s2n_get_ticket_encrypt_decrypt_key(conn->config);
@@ -465,10 +468,10 @@ int s2n_encrypt_session_ticket(struct s2n_connection *conn, struct s2n_stuffer *
 
     GUARD(s2n_stuffer_write_bytes(to, key->key_name, S2N_TICKET_KEY_NAME_LEN));
 
-    GUARD(s2n_get_public_random_data(&iv));
+    GUARD_AS_POSIX(s2n_get_public_random_data(&iv));
     GUARD(s2n_stuffer_write(to, &iv));
 
-    GUARD(s2n_blob_init(&aes_key_blob, key->aes_key, S2N_AES256_KEY_LEN));
+    GUARD_AS_POSIX(s2n_blob_init(&aes_key_blob, key->aes_key, S2N_AES256_KEY_LEN));
     notnull_check(aes_ticket_key.evp_cipher_ctx = EVP_CIPHER_CTX_new());
     GUARD(s2n_aes256_gcm.init(&aes_ticket_key));
     GUARD(s2n_aes256_gcm.set_encryption_key(&aes_ticket_key, &aes_key_blob));
@@ -501,21 +504,21 @@ int s2n_decrypt_session_ticket(struct s2n_connection *conn)
 
     uint8_t iv_data[S2N_TLS_GCM_IV_LEN] = { 0 };
     struct s2n_blob iv = { 0 };
-    GUARD(s2n_blob_init(&iv, iv_data, sizeof(iv_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&iv, iv_data, sizeof(iv_data)));
 
     uint8_t aad_data[S2N_TICKET_AAD_LEN] = { 0 };
     struct s2n_blob aad_blob = {0};
-    GUARD(s2n_blob_init(&aad_blob, aad_data, sizeof(aad_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&aad_blob, aad_data, sizeof(aad_data)));
     struct s2n_stuffer aad = {0};
 
     uint8_t s_data[S2N_STATE_SIZE_IN_BYTES] = { 0 };
     struct s2n_blob state_blob = {0};
-    GUARD(s2n_blob_init(&state_blob, s_data, sizeof(s_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&state_blob, s_data, sizeof(s_data)));
     struct s2n_stuffer state = {0};
 
     uint8_t en_data[S2N_STATE_SIZE_IN_BYTES + S2N_TLS_GCM_TAG_LEN] = {0};
     struct s2n_blob en_blob = {0};
-    GUARD(s2n_blob_init(&en_blob, en_data, sizeof(en_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&en_blob, en_data, sizeof(en_data)));
 
     from = &conn->client_ticket_to_decrypt;
     GUARD(s2n_stuffer_read_bytes(from, key_name, S2N_TICKET_KEY_NAME_LEN));
@@ -527,7 +530,7 @@ int s2n_decrypt_session_ticket(struct s2n_connection *conn)
 
     GUARD(s2n_stuffer_read(from, &iv));
 
-    s2n_blob_init(&aes_key_blob, key->aes_key, S2N_AES256_KEY_LEN);
+    GUARD_AS_POSIX(s2n_blob_init(&aes_key_blob, key->aes_key, S2N_AES256_KEY_LEN));
     notnull_check(aes_ticket_key.evp_cipher_ctx = EVP_CIPHER_CTX_new());
     GUARD(s2n_aes256_gcm.init(&aes_ticket_key));
     GUARD(s2n_aes256_gcm.set_decryption_key(&aes_ticket_key, &aes_key_blob));
@@ -583,21 +586,21 @@ int s2n_decrypt_session_cache(struct s2n_connection *conn, struct s2n_stuffer *f
 
     uint8_t iv_data[S2N_TLS_GCM_IV_LEN] = { 0 };
     struct s2n_blob iv = {0};
-    GUARD(s2n_blob_init(&iv, iv_data, sizeof(iv_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&iv, iv_data, sizeof(iv_data)));
 
     uint8_t aad_data[S2N_TICKET_AAD_LEN] = { 0 };
     struct s2n_blob aad_blob = {0};
-    GUARD(s2n_blob_init(&aad_blob, aad_data, sizeof(aad_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&aad_blob, aad_data, sizeof(aad_data)));
     struct s2n_stuffer aad = {0};
 
     uint8_t s_data[S2N_STATE_SIZE_IN_BYTES] = { 0 };
     struct s2n_blob state_blob = {0};
-    GUARD(s2n_blob_init(&state_blob, s_data, sizeof(s_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&state_blob, s_data, sizeof(s_data)));
     struct s2n_stuffer state = {0};
 
     uint8_t en_data[S2N_STATE_SIZE_IN_BYTES + S2N_TLS_GCM_TAG_LEN] = {0};
     struct s2n_blob en_blob = {0};
-    GUARD(s2n_blob_init(&en_blob, en_data, sizeof(en_data)));
+    GUARD_AS_POSIX(s2n_blob_init(&en_blob, en_data, sizeof(en_data)));
 
     GUARD(s2n_stuffer_read_bytes(from, key_name, S2N_TICKET_KEY_NAME_LEN));
 
@@ -608,7 +611,7 @@ int s2n_decrypt_session_cache(struct s2n_connection *conn, struct s2n_stuffer *f
 
     GUARD(s2n_stuffer_read(from, &iv));
 
-    s2n_blob_init(&aes_key_blob, key->aes_key, S2N_AES256_KEY_LEN);
+    GUARD_AS_POSIX(s2n_blob_init(&aes_key_blob, key->aes_key, S2N_AES256_KEY_LEN));
     notnull_check(aes_ticket_key.evp_cipher_ctx = EVP_CIPHER_CTX_new());
     GUARD(s2n_aes256_gcm.init(&aes_ticket_key));
     GUARD(s2n_aes256_gcm.set_decryption_key(&aes_ticket_key, &aes_key_blob));
@@ -659,7 +662,7 @@ int s2n_config_wipe_expired_ticket_crypto_keys(struct s2n_config *config, int8_t
 
 end:
     for (int j = 0; j < num_of_expired_keys; j++) {
-        s2n_set_remove(config->ticket_keys, expired_keys_index[j] - j);
+        GUARD_AS_POSIX(s2n_set_remove(config->ticket_keys, expired_keys_index[j] - j));
     }
 
     return 0;
@@ -669,6 +672,6 @@ end:
 int s2n_config_store_ticket_key(struct s2n_config *config, struct s2n_ticket_key *key)
 {
     /* Keys are stored from oldest to newest */
-    GUARD(s2n_set_add(config->ticket_keys, key));
+    GUARD_AS_POSIX(s2n_set_add(config->ticket_keys, key));
     return S2N_SUCCESS;
 }

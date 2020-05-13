@@ -49,6 +49,7 @@
 #include "utils/s2n_compiler.h"
 #include "utils/s2n_mem.h"
 #include "utils/s2n_random.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_socket.h"
 #include "utils/s2n_timer.h"
@@ -150,8 +151,8 @@ static int s2n_connection_init_hmacs(struct s2n_connection *conn)
 struct s2n_connection *s2n_connection_new(s2n_mode mode)
 {
     struct s2n_blob blob = {0};
-    GUARD_PTR(s2n_alloc(&blob, sizeof(struct s2n_connection)));
-    GUARD_PTR(s2n_blob_zero(&blob));
+    GUARD_RESULT_PTR(s2n_alloc(&blob, sizeof(struct s2n_connection)));
+    GUARD_RESULT_PTR(s2n_blob_zero(&blob));
 
     /* Cast 'through' void to acknowledge that we are changing alignment,
      * which is ok, as blob.data is always aligned.
@@ -182,19 +183,19 @@ struct s2n_connection *s2n_connection_new(s2n_mode mode)
 
     /* Allocate the fixed-size stuffers */
     blob = (struct s2n_blob) {0};
-    GUARD_PTR(s2n_blob_init(&blob, conn->alert_in_data, S2N_ALERT_LENGTH));
+    GUARD_RESULT_PTR(s2n_blob_init(&blob, conn->alert_in_data, S2N_ALERT_LENGTH));
     GUARD_PTR(s2n_stuffer_init(&conn->alert_in, &blob));
 
     blob = (struct s2n_blob) {0};
-    GUARD_PTR(s2n_blob_init(&blob, conn->reader_alert_out_data, S2N_ALERT_LENGTH));
+    GUARD_RESULT_PTR(s2n_blob_init(&blob, conn->reader_alert_out_data, S2N_ALERT_LENGTH));
     GUARD_PTR(s2n_stuffer_init(&conn->reader_alert_out, &blob));
 
     blob = (struct s2n_blob) {0};
-    GUARD_PTR(s2n_blob_init(&blob, conn->writer_alert_out_data, S2N_ALERT_LENGTH));
+    GUARD_RESULT_PTR(s2n_blob_init(&blob, conn->writer_alert_out_data, S2N_ALERT_LENGTH));
     GUARD_PTR(s2n_stuffer_init(&conn->writer_alert_out, &blob));
 
     blob = (struct s2n_blob) {0};
-    GUARD_PTR(s2n_blob_init(&blob, conn->ticket_ext_data, S2N_TICKET_SIZE_IN_BYTES));
+    GUARD_RESULT_PTR(s2n_blob_init(&blob, conn->ticket_ext_data, S2N_TICKET_SIZE_IN_BYTES));
     GUARD_PTR(s2n_stuffer_init(&conn->client_ticket_to_decrypt, &blob));
 
     /* Allocate long term key memory */
@@ -216,14 +217,14 @@ struct s2n_connection *s2n_connection_new(s2n_mode mode)
      * in _wipe will fix that
      */
     blob = (struct s2n_blob) {0};
-    GUARD_PTR(s2n_blob_init(&blob, conn->header_in_data, S2N_TLS_RECORD_HEADER_LENGTH));
+    GUARD_RESULT_PTR(s2n_blob_init(&blob, conn->header_in_data, S2N_TLS_RECORD_HEADER_LENGTH));
     GUARD_PTR(s2n_stuffer_init(&conn->header_in, &blob));
     GUARD_PTR(s2n_stuffer_growable_alloc(&conn->out, 0));
     GUARD_PTR(s2n_stuffer_growable_alloc(&conn->in, 0));
     GUARD_PTR(s2n_stuffer_growable_alloc(&conn->handshake.io, 0));
     GUARD_PTR(s2n_stuffer_growable_alloc(&conn->client_hello.raw_message, 0));
     GUARD_PTR(s2n_connection_wipe(conn));
-    GUARD_PTR(s2n_timer_start(conn->config, &conn->write_timer));
+    GUARD_RESULT_PTR(s2n_timer_start(conn->config, &conn->write_timer));
 
     /* Initialize the cookie stuffer with zero length. If a cookie extension
      * is received, the stuffer will be resized according to the cookie length */
@@ -298,8 +299,8 @@ static int s2n_connection_wipe_keys(struct s2n_connection *conn)
         GUARD(s2n_ecc_evp_params_free(&conn->secure.client_ecc_evp_params[i]));
     }
     GUARD(s2n_kem_free(&conn->secure.kem_params));
-    GUARD(s2n_free(&conn->secure.client_cert_chain));
-    GUARD(s2n_free(&conn->ct_response));
+    GUARD_AS_POSIX(s2n_free(&conn->secure.client_cert_chain));
+    GUARD_AS_POSIX(s2n_free(&conn->ct_response));
 
     return 0;
 }
@@ -347,8 +348,8 @@ static int s2n_connection_free_io_contexts(struct s2n_connection *conn)
         return 0;
     }
 
-    GUARD(s2n_free_object((uint8_t **)&conn->send_io_context, sizeof(struct s2n_socket_write_io_context)));
-    GUARD(s2n_free_object((uint8_t **)&conn->recv_io_context, sizeof(struct s2n_socket_read_io_context)));
+    GUARD_AS_POSIX(s2n_free_object((uint8_t **)&conn->send_io_context, sizeof(struct s2n_socket_write_io_context)));
+    GUARD_AS_POSIX(s2n_free_object((uint8_t **)&conn->recv_io_context, sizeof(struct s2n_socket_read_io_context)));
 
     return 0;
 }
@@ -356,10 +357,10 @@ static int s2n_connection_free_io_contexts(struct s2n_connection *conn)
 static int s2n_connection_wipe_io(struct s2n_connection *conn)
 {
     if (s2n_connection_is_managed_corked(conn) && conn->recv){
-        GUARD(s2n_socket_read_restore(conn));
+        GUARD_AS_POSIX(s2n_socket_read_restore(conn));
     }
     if (s2n_connection_is_managed_corked(conn) && conn->send){
-        GUARD(s2n_socket_write_restore(conn));
+        GUARD_AS_POSIX(s2n_socket_write_restore(conn));
     }
 
     /* Remove all I/O-related members */
@@ -456,16 +457,16 @@ int s2n_connection_free(struct s2n_connection *conn)
 
     GUARD(s2n_connection_free_io_contexts(conn));
 
-    GUARD(s2n_free(&conn->client_ticket));
-    GUARD(s2n_free(&conn->status_response));
+    GUARD_AS_POSIX(s2n_free(&conn->client_ticket));
+    GUARD_AS_POSIX(s2n_free(&conn->status_response));
     GUARD(s2n_stuffer_free(&conn->in));
     GUARD(s2n_stuffer_free(&conn->out));
     GUARD(s2n_stuffer_free(&conn->handshake.io));
     s2n_x509_validator_wipe(&conn->x509_validator);
     GUARD(s2n_client_hello_free(&conn->client_hello));
-    GUARD(s2n_free(&conn->application_protocols_overridden));
+    GUARD_AS_POSIX(s2n_free(&conn->application_protocols_overridden));
     GUARD(s2n_stuffer_free(&conn->cookie_stuffer));
-    GUARD(s2n_free_object((uint8_t **)&conn, sizeof(struct s2n_connection)));
+    GUARD_AS_POSIX(s2n_free_object((uint8_t **)&conn, sizeof(struct s2n_connection)));
 
     return 0;
 }
@@ -562,9 +563,9 @@ int s2n_connection_free_handshake(struct s2n_connection *conn)
     GUARD(s2n_stuffer_resize(&conn->client_hello.raw_message, 0));
 
     /* We can free extension data we no longer need */
-    GUARD(s2n_free(&conn->client_ticket));
-    GUARD(s2n_free(&conn->status_response));
-    GUARD(s2n_free(&conn->application_protocols_overridden));
+    GUARD_AS_POSIX(s2n_free(&conn->client_ticket));
+    GUARD_AS_POSIX(s2n_free(&conn->status_response));
+    GUARD_AS_POSIX(s2n_free(&conn->application_protocols_overridden));
     GUARD(s2n_stuffer_free(&conn->cookie_stuffer));
 
     /* Remove parsed extensions array from client_hello */
@@ -614,9 +615,9 @@ int s2n_connection_wipe(struct s2n_connection *conn)
     /* Wipe the I/O-related info and restore the original socket if necessary */
     GUARD(s2n_connection_wipe_io(conn));
 
-    GUARD(s2n_free(&conn->client_ticket));
-    GUARD(s2n_free(&conn->status_response));
-    GUARD(s2n_free(&conn->application_protocols_overridden));
+    GUARD_AS_POSIX(s2n_free(&conn->client_ticket));
+    GUARD_AS_POSIX(s2n_free(&conn->status_response));
+    GUARD_AS_POSIX(s2n_free(&conn->application_protocols_overridden));
 
     /* Remove parsed extensions array from client_hello */
     GUARD(s2n_client_hello_free_parsed_extensions(&conn->client_hello));
@@ -877,20 +878,20 @@ int s2n_connection_set_read_fd(struct s2n_connection *conn, int rfd)
     struct s2n_blob ctx_mem = {0};
     struct s2n_socket_read_io_context *peer_socket_ctx;
 
-    GUARD(s2n_alloc(&ctx_mem, sizeof(struct s2n_socket_read_io_context)));
-    GUARD(s2n_blob_zero(&ctx_mem));
+    GUARD_AS_POSIX(s2n_alloc(&ctx_mem, sizeof(struct s2n_socket_read_io_context)));
+    GUARD_AS_POSIX(s2n_blob_zero(&ctx_mem));
 
     peer_socket_ctx = (struct s2n_socket_read_io_context *)(void *)ctx_mem.data;
     peer_socket_ctx->fd = rfd;
 
-    s2n_connection_set_recv_cb(conn, s2n_socket_read);
+    s2n_connection_set_recv_cb(conn, s2n_socket_read_posix);
     s2n_connection_set_recv_ctx(conn, peer_socket_ctx);
     conn->managed_io = 1;
 
     /* This is only needed if the user is using corked io.
      * Take the snapshot in case optimized io is enabled after setting the fd.
      */
-    GUARD(s2n_socket_read_snapshot(conn));
+    GUARD_AS_POSIX(s2n_socket_read_snapshot(conn));
 
     return 0;
 }
@@ -900,22 +901,22 @@ int s2n_connection_set_write_fd(struct s2n_connection *conn, int wfd)
     struct s2n_blob ctx_mem = {0};
     struct s2n_socket_write_io_context *peer_socket_ctx;
 
-    GUARD(s2n_alloc(&ctx_mem, sizeof(struct s2n_socket_write_io_context)));
+    GUARD_AS_POSIX(s2n_alloc(&ctx_mem, sizeof(struct s2n_socket_write_io_context)));
 
     peer_socket_ctx = (struct s2n_socket_write_io_context *)(void *)ctx_mem.data;
     peer_socket_ctx->fd = wfd;
 
-    s2n_connection_set_send_cb(conn, s2n_socket_write);
+    s2n_connection_set_send_cb(conn, s2n_socket_write_posix);
     s2n_connection_set_send_ctx(conn, peer_socket_ctx);
     conn->managed_io = 1;
 
     /* This is only needed if the user is using corked io.
      * Take the snapshot in case optimized io is enabled after setting the fd.
      */
-    GUARD(s2n_socket_write_snapshot(conn));
+    GUARD_AS_POSIX(s2n_socket_write_snapshot(conn));
 
     uint8_t ipv6;
-    if (0 == s2n_socket_is_ipv6(wfd, &ipv6)) {
+    if (s2n_result_is_ok(s2n_socket_is_ipv6(wfd, &ipv6))) {
         conn->ipv6 = (ipv6 ? 1 : 0);
     }
 
@@ -1126,7 +1127,7 @@ uint64_t s2n_connection_get_delay(struct s2n_connection *conn)
     }
 
     uint64_t elapsed;
-    GUARD(s2n_timer_elapsed(conn->config, &conn->write_timer, &elapsed));
+    GUARD_AS_POSIX(s2n_timer_elapsed(conn->config, &conn->write_timer, &elapsed));
 
     if (elapsed > conn->delay) {
         return 0;
@@ -1145,10 +1146,13 @@ int s2n_connection_kill(struct s2n_connection *conn)
     int64_t min = TEN_S, max = 3 * TEN_S;
 
     /* Keep track of the delay so that it can be enforced */
-    conn->delay = min + s2n_public_random(max - min);
+    int64_t rand_delay = 0;
+    GUARD_AS_POSIX(s2n_public_random(max - min, &rand_delay));
+
+    conn->delay = min + rand_delay;
 
     /* Restart the write timer */
-    GUARD(s2n_timer_start(conn->config, &conn->write_timer));
+    GUARD_AS_POSIX(s2n_timer_start(conn->config, &conn->write_timer));
 
     if (conn->blinding == S2N_BUILT_IN_BLINDING) {
         struct timespec sleep_time = {.tv_sec = conn->delay / ONE_S,.tv_nsec = conn->delay % ONE_S };

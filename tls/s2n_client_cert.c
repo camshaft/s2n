@@ -25,8 +25,8 @@
 #include "stuffer/s2n_stuffer.h"
 
 #include "utils/s2n_blob.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
-
 
 int s2n_client_cert_recv(struct s2n_connection *conn)
 {
@@ -63,11 +63,11 @@ int s2n_client_cert_recv(struct s2n_connection *conn)
 
     conn->secure.client_cert_pkey_type = pkey_type;
     GUARD(s2n_pkey_setup_for_type(&public_key, pkey_type));
-    
+
     GUARD(s2n_pkey_check_key_exists(&public_key));
-    GUARD(s2n_dup(&client_cert_chain, &conn->secure.client_cert_chain));
+    GUARD_AS_POSIX(s2n_dup(&client_cert_chain, &conn->secure.client_cert_chain));
     conn->secure.client_public_key = public_key;
-    
+
     return 0;
 }
 

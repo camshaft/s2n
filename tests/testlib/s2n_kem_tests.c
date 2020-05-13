@@ -17,6 +17,7 @@
 #include "tests/testlib/s2n_nist_kats.h"
 #include "utils/s2n_mem.h"
 #include "utils/s2n_random.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "crypto/s2n_fips.h"
 
@@ -24,12 +25,12 @@
 uint8_t kat_entropy_buff[SEED_LENGTH] = {0};
 struct s2n_blob kat_entropy_blob = {.size = SEED_LENGTH, .data = kat_entropy_buff};
 
-int kat_entropy(struct s2n_blob *blob)
+S2N_RESULT kat_entropy(struct s2n_blob *blob)
 {
-    S2N_ERROR_IF(s2n_is_in_fips_mode(), S2N_ERR_PQ_KEMS_DISALLOWED_IN_FIPS);
-    eq_check(blob->size, kat_entropy_blob.size);
+    S2N_ERROR_RESULT_IF(s2n_is_in_fips_mode(), S2N_ERR_PQ_KEMS_DISALLOWED_IN_FIPS);
+    eq_check_result(blob->size, kat_entropy_blob.size);
     blob->data = kat_entropy_blob.data;
-    return 0;
+    return S2N_RESULT_OK;
 }
 
 int s2n_test_kem_with_kat(const struct s2n_kem *kem, const char *kat_file_name)
@@ -70,7 +71,7 @@ int s2n_test_kem_with_kat(const struct s2n_kem *kem, const char *kat_file_name)
         GUARD(ReadHex(kat_file, kat_entropy_blob.data, SEED_LENGTH, "seed = "));
         struct s2n_drbg kat_drbg = {.entropy_generator = kat_entropy};
         GUARD(s2n_drbg_instantiate(&kat_drbg, &personalization_string, S2N_DANGEROUS_AES_256_CTR_NO_DF_NO_PR));
-        GUARD(s2n_set_private_drbg_for_test(kat_drbg));
+        GUARD_AS_POSIX(s2n_set_private_drbg_for_test(kat_drbg));
 
         /* Generate the public/private key pair */
         GUARD(kem->generate_keypair(pk, sk));

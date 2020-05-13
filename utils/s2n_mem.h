@@ -16,13 +16,16 @@
 #pragma once
 
 #include "utils/s2n_blob.h"
+#include "utils/s2n_result.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
-int s2n_mem_init(void);
-int s2n_mem_cleanup(void);
-int s2n_alloc(struct s2n_blob *b, uint32_t size);
-int s2n_realloc(struct s2n_blob *b, uint32_t size);
-int s2n_free(struct s2n_blob *b);
-int s2n_free_object(uint8_t **p_data, uint32_t size);
-int s2n_dup(struct s2n_blob *from, struct s2n_blob *to);
+S2N_RESULT s2n_mem_init(void);
+S2N_RESULT s2n_mem_cleanup(void);
+S2N_RESULT s2n_alloc(struct s2n_blob *b, uint32_t size);
+S2N_RESULT s2n_realloc(struct s2n_blob *b, uint32_t size);
+S2N_RESULT s2n_free(struct s2n_blob *b);
+bool s2n_free_deferred(struct s2n_blob *b);
+S2N_RESULT s2n_free_object(uint8_t **p_data, uint32_t size);
+S2N_RESULT s2n_dup(struct s2n_blob *from, struct s2n_blob *to);

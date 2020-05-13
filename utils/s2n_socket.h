@@ -16,6 +16,7 @@
 #pragma once
 
 #include "tls/s2n_connection.h"
+#include "utils/s2n_result.h"
 
 /* The default read I/O context for communication over a socket */
 struct s2n_socket_read_io_context {
@@ -33,21 +34,23 @@ struct s2n_socket_read_io_context {
 struct s2n_socket_write_io_context {
     /* The peer's fd */
     int fd;
-    
+
     /* Original TCP_CORK socket option settings before s2n takes over the fd */
     unsigned int original_cork_is_set:1;
     int original_cork_val;
 };
 
-extern int s2n_socket_quickack(struct s2n_connection *conn);
-extern int s2n_socket_read_snapshot(struct s2n_connection *conn);
-extern int s2n_socket_write_snapshot(struct s2n_connection *conn);
-extern int s2n_socket_read_restore(struct s2n_connection *conn);
-extern int s2n_socket_write_restore(struct s2n_connection *conn);
-extern int s2n_socket_was_corked(struct s2n_connection *conn);
-extern int s2n_socket_write_cork(struct s2n_connection *conn);
-extern int s2n_socket_write_uncork(struct s2n_connection *conn);
-extern int s2n_socket_set_read_size(struct s2n_connection *conn, int size);
-extern int s2n_socket_read(void *io_context, uint8_t *buf, uint32_t len);
-extern int s2n_socket_write(void *io_context, const uint8_t *buf, uint32_t len);
-extern int s2n_socket_is_ipv6(int fd, uint8_t *ipv6);
+extern S2N_RESULT s2n_socket_quickack(struct s2n_connection *conn);
+extern S2N_RESULT s2n_socket_read_snapshot(struct s2n_connection *conn);
+extern S2N_RESULT s2n_socket_write_snapshot(struct s2n_connection *conn);
+extern S2N_RESULT s2n_socket_read_restore(struct s2n_connection *conn);
+extern S2N_RESULT s2n_socket_write_restore(struct s2n_connection *conn);
+extern S2N_RESULT s2n_socket_was_corked(struct s2n_connection *conn, bool *was_corked);
+extern S2N_RESULT s2n_socket_write_cork(struct s2n_connection *conn);
+extern S2N_RESULT s2n_socket_write_uncork(struct s2n_connection *conn);
+extern S2N_RESULT s2n_socket_set_read_size(struct s2n_connection *conn, int size);
+extern S2N_RESULT s2n_socket_read(void *io_context, uint8_t *buf, uint32_t len, uint32_t *bytes_read);
+extern int s2n_socket_read_posix(void *io_context, uint8_t *buf, uint32_t len);
+extern S2N_RESULT s2n_socket_write(void *io_context, const uint8_t *buf, uint32_t len, uint32_t *bytes_written);
+extern int s2n_socket_write_posix(void *io_context, const uint8_t *buf, uint32_t len);
+extern S2N_RESULT s2n_socket_is_ipv6(int fd, uint8_t *ipv6);

@@ -24,10 +24,12 @@
 #include "tls/s2n_cipher_preferences.h"
 #include "tls/s2n_security_policies.h"
 #include "tls/s2n_tls13.h"
-#include "utils/s2n_safety.h"
 #include "crypto/s2n_hkdf.h"
-#include "utils/s2n_map.h"
+
 #include "utils/s2n_blob.h"
+#include "utils/s2n_map.h"
+#include "utils/s2n_result.h"
+#include "utils/s2n_safety.h"
 
 #if defined(CLOCK_MONOTONIC_RAW)
 #define S2N_CLOCK_HW CLOCK_MONOTONIC_RAW
@@ -148,7 +150,7 @@ static int s2n_config_cleanup(struct s2n_config *config)
     GUARD(s2n_config_free_session_ticket_keys(config));
     GUARD(s2n_config_free_cert_chain_and_key(config));
     GUARD(s2n_config_free_dhparams(config));
-    GUARD(s2n_free(&config->application_protocols));
+    GUARD_AS_POSIX(s2n_free(&config->application_protocols));
     GUARD_AS_POSIX(s2n_map_free(config->domain_name_to_cert_map));
 
     return 0;
@@ -267,7 +269,7 @@ struct s2n_config *s2n_config_new(void)
     struct s2n_blob allocator = {0};
     struct s2n_config *new_config;
 
-    GUARD_PTR(s2n_alloc(&allocator, sizeof(struct s2n_config)));
+    GUARD_RESULT_PTR(s2n_alloc(&allocator, sizeof(struct s2n_config)));
 
     new_config = (struct s2n_config *)(void *)allocator.data;
     GUARD_PTR(s2n_config_init(new_config));
@@ -305,11 +307,11 @@ int s2n_config_init_session_ticket_keys(struct s2n_config *config)
 int s2n_config_free_session_ticket_keys(struct s2n_config *config)
 {
     if (config->ticket_keys != NULL) {
-        GUARD(s2n_set_free_p(&config->ticket_keys));
+        GUARD_AS_POSIX(s2n_set_free_p(&config->ticket_keys));
     }
 
     if (config->ticket_key_hashes != NULL) {
-        GUARD(s2n_set_free_p(&config->ticket_key_hashes));
+        GUARD_AS_POSIX(s2n_set_free_p(&config->ticket_key_hashes));
     }
 
     return 0;
@@ -334,7 +336,7 @@ int s2n_config_free_dhparams(struct s2n_config *config)
         GUARD(s2n_dh_params_free(config->dhparams));
     }
 
-    GUARD(s2n_free_object((uint8_t **)&config->dhparams, sizeof(struct s2n_dh_params)));
+    GUARD_AS_POSIX(s2n_free_object((uint8_t **)&config->dhparams, sizeof(struct s2n_dh_params)));
     return 0;
 }
 
@@ -342,7 +344,7 @@ int s2n_config_free(struct s2n_config *config)
 {
     s2n_config_cleanup(config);
 
-    GUARD(s2n_free_object((uint8_t **)&config, sizeof(struct s2n_config)));
+    GUARD_AS_POSIX(s2n_free_object((uint8_t **)&config, sizeof(struct s2n_config)));
     return 0;
 }
 
@@ -527,7 +529,7 @@ int s2n_config_add_dhparams(struct s2n_config *config, const char *dhparams_pem)
     struct s2n_blob mem = {0};
 
     /* Allocate the memory for the chain and key struct */
-    GUARD(s2n_alloc(&mem, sizeof(struct s2n_dh_params)));
+    GUARD_AS_POSIX(s2n_alloc(&mem, sizeof(struct s2n_dh_params)));
     config->dhparams = (struct s2n_dh_params *)(void *)mem.data;
 
     GUARD(s2n_stuffer_alloc_ro_from_string(&dhparams_in_stuffer, dhparams_pem));
@@ -741,8 +743,8 @@ int s2n_config_add_ticket_crypto_key(struct s2n_config *config,
     struct s2n_blob info = { .size = 0 };
 
     struct s2n_ticket_key *session_ticket_key;
-    DEFER_CLEANUP(struct s2n_blob allocator = {0}, s2n_free);
-    GUARD(s2n_alloc(&allocator, sizeof(struct s2n_ticket_key)));
+    DEFER_CLEANUP(struct s2n_blob allocator = {0}, s2n_free_deferred);
+    GUARD_AS_POSIX(s2n_alloc(&allocator, sizeof(struct s2n_ticket_key)));
     session_ticket_key = (struct s2n_ticket_key *) (void *) allocator.data;
 
     DEFER_CLEANUP(struct s2n_hmac_state hmac = {0}, s2n_hmac_free);
@@ -759,12 +761,12 @@ int s2n_config_add_ticket_crypto_key(struct s2n_config *config,
     GUARD(s2n_hash_digest(&hash, hash_output, SHA_DIGEST_LENGTH));
 
     if (s2n_set_size(config->ticket_key_hashes) >= S2N_MAX_TICKET_KEY_HASHES) {
-        GUARD(s2n_set_free_p(&config->ticket_key_hashes));
+        GUARD_AS_POSIX(s2n_set_free_p(&config->ticket_key_hashes));
         notnull_check(config->ticket_key_hashes = s2n_set_new(SHA_DIGEST_LENGTH, s2n_verify_unique_ticket_key_comparator));
     }
 
     /* Insert hash key into a sorted array at known index */
-    GUARD(s2n_set_add(config->ticket_key_hashes, hash_output));
+    GUARD_AS_POSIX(s2n_set_add(config->ticket_key_hashes, hash_output));
 
     memcpy_check(session_ticket_key->key_name, name, S2N_TICKET_KEY_NAME_LEN);
     memcpy_check(session_ticket_key->aes_key, out_key.data, S2N_AES256_KEY_LEN);

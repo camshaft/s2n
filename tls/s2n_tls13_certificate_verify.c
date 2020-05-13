@@ -19,6 +19,7 @@
 #include "tls/s2n_tls13_handshake.h"
 #include "tls/s2n_tls13_certificate_verify.h"
 #include "tls/s2n_connection.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 #include <stdint.h>
@@ -26,9 +27,9 @@
 /**
   * Specified in https://tools.ietf.org/html/rfc8446#section-4.4.3
   *
-  * Servers MUST send this message when authenticating via a certificate.  
-  * Clients MUST send this message whenever authenticating via a certificate. 
-  * When sent, this message MUST appear immediately after the Certificate 
+  * Servers MUST send this message when authenticating via a certificate.
+  * Clients MUST send this message whenever authenticating via a certificate.
+  * When sent, this message MUST appear immediately after the Certificate
   * message and immediately prior to the Finished message.
  **/
 
@@ -78,14 +79,14 @@ int s2n_tls13_write_cert_verify_signature(struct s2n_connection *conn, struct s2
     notnull_check(conn->handshake_params.our_chain_and_key);
     const struct s2n_pkey *pkey = conn->handshake_params.our_chain_and_key->private_key;
 
-    DEFER_CLEANUP(struct s2n_blob signed_content = {0}, s2n_free);
+    DEFER_CLEANUP(struct s2n_blob signed_content = {0}, s2n_free_deferred);
     DEFER_CLEANUP(struct s2n_hash_state message_hash = {0}, s2n_hash_free);
     DEFER_CLEANUP(struct s2n_stuffer unsigned_content = {0}, s2n_stuffer_free);
     GUARD(s2n_hash_new(&message_hash));
     GUARD(s2n_hash_init(&message_hash, chosen_sig_scheme->hash_alg));
 
     uint32_t maximum_signature_length = s2n_pkey_size(pkey);
-    GUARD(s2n_alloc(&signed_content, maximum_signature_length));
+    GUARD_AS_POSIX(s2n_alloc(&signed_content, maximum_signature_length));
     signed_content.size = maximum_signature_length;
 
     if (conn->mode == S2N_CLIENT) {
@@ -165,7 +166,7 @@ int s2n_tls13_cert_verify_recv(struct s2n_connection *conn)
 int s2n_tls13_cert_read_and_verify_signature(struct s2n_connection *conn, struct s2n_signature_scheme *chosen_sig_scheme)
 {
     struct s2n_stuffer *in = &conn->handshake.io;
-    DEFER_CLEANUP(struct s2n_blob signed_content = {0}, s2n_free);
+    DEFER_CLEANUP(struct s2n_blob signed_content = {0}, s2n_free_deferred);
     DEFER_CLEANUP(struct s2n_stuffer unsigned_content = {0}, s2n_stuffer_free);
     DEFER_CLEANUP(struct s2n_hash_state message_hash = {0}, s2n_hash_free);
     GUARD(s2n_hash_new(&message_hash));
@@ -176,7 +177,7 @@ int s2n_tls13_cert_read_and_verify_signature(struct s2n_connection *conn, struct
     S2N_ERROR_IF(signature_size > s2n_stuffer_data_available(in), S2N_ERR_BAD_MESSAGE);
 
     /* Get wire signature */
-    GUARD(s2n_alloc(&signed_content, signature_size));
+    GUARD_AS_POSIX(s2n_alloc(&signed_content, signature_size));
     signed_content.size = signature_size;
     GUARD(s2n_stuffer_read_bytes(in, signed_content.data, signature_size));
 

@@ -19,6 +19,7 @@
 #include "tls/s2n_kem.h"
 
 #include "utils/s2n_mem.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 #if !defined(S2N_NO_PQ)
@@ -120,7 +121,7 @@ int s2n_kem_generate_keypair(struct s2n_kem_params *kem_params)
     notnull_check(kem_params->public_key.data);
 
     /* The private key is needed for client_key_recv and must be saved */
-    GUARD(s2n_alloc(&kem_params->private_key, kem->private_key_length));
+    GUARD_AS_POSIX(s2n_alloc(&kem_params->private_key, kem->private_key_length));
 
     GUARD(kem->generate_keypair(kem_params->public_key.data, kem_params->private_key.data));
     return 0;
@@ -139,7 +140,7 @@ int s2n_kem_encapsulate(const struct s2n_kem_params *kem_params, struct s2n_blob
     eq_check(ciphertext->size, kem->ciphertext_length);
     notnull_check(ciphertext->data);
 
-    GUARD(s2n_alloc(shared_secret, kem->shared_secret_key_length));
+    GUARD_AS_POSIX(s2n_alloc(shared_secret, kem->shared_secret_key_length));
 
     GUARD(kem->encapsulate(ciphertext->data, shared_secret->data, kem_params->public_key.data));
     return 0;
@@ -158,7 +159,7 @@ int s2n_kem_decapsulate(const struct s2n_kem_params *kem_params, struct s2n_blob
     eq_check(ciphertext->size, kem->ciphertext_length);
     notnull_check(ciphertext->data);
 
-    GUARD(s2n_alloc(shared_secret, kem_params->kem->shared_secret_key_length));
+    GUARD_AS_POSIX(s2n_alloc(shared_secret, kem_params->kem->shared_secret_key_length));
 
     GUARD(kem->decapsulate(shared_secret->data, ciphertext->data, kem_params->private_key.data));
     return 0;
@@ -233,12 +234,12 @@ int s2n_choose_kem_without_peer_pref_list(const uint8_t iana_value[S2N_TLS_CIPHE
 int s2n_kem_free(struct s2n_kem_params *kem_params)
 {
     if (kem_params != NULL){
-        GUARD(s2n_blob_zero(&kem_params->private_key));
+        GUARD_AS_POSIX(s2n_blob_zero(&kem_params->private_key));
         if (kem_params->private_key.allocated) {
-            GUARD(s2n_free(&kem_params->private_key));
+            GUARD_AS_POSIX(s2n_free(&kem_params->private_key));
         }
         if (kem_params->public_key.allocated) {
-            GUARD(s2n_free(&kem_params->public_key));
+            GUARD_AS_POSIX(s2n_free(&kem_params->public_key));
         }
     }
     return 0;

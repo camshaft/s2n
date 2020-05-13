@@ -19,6 +19,7 @@
 #include "tls/s2n_x509_validator.h"
 #include "tls/extensions/s2n_certificate_extensions.h"
 #include "tls/extensions/s2n_server_certificate_status.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 #define U24_SIZE 3
@@ -64,7 +65,7 @@ int s2n_server_certificate_status_send(struct s2n_connection *conn, struct s2n_s
 {
     notnull_check(conn);
     if (s2n_server_can_send_ocsp(conn)) {
-        struct s2n_blob *ocsp_status = &conn->handshake_params.our_chain_and_key->ocsp_status; 
+        struct s2n_blob *ocsp_status = &conn->handshake_params.our_chain_and_key->ocsp_status;
 
         GUARD(s2n_stuffer_write_uint8(out, (uint8_t) S2N_STATUS_REQUEST_OCSP));
         GUARD(s2n_stuffer_write_uint24(out, ocsp_status->size));
@@ -77,7 +78,7 @@ int s2n_server_certificate_status_send(struct s2n_connection *conn, struct s2n_s
 int s2n_server_certificate_status_parse(struct s2n_connection *conn, struct s2n_blob *status)
 {
     notnull_check(conn);
-    GUARD(s2n_realloc(&conn->status_response, status->size));
+    GUARD_AS_POSIX(s2n_realloc(&conn->status_response, status->size));
     memcpy_check(conn->status_response.data, status->data, status->size);
     conn->status_response.size = status->size;
 

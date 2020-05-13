@@ -19,6 +19,7 @@
 
 #include "crypto/s2n_drbg.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_random.h"
 #include "utils/s2n_blob.h"
@@ -59,7 +60,7 @@ static int s2n_drbg_bits(struct s2n_drbg *drbg, struct s2n_blob *out)
     notnull_check(out);
 
     struct s2n_blob value = {0};
-    GUARD(s2n_blob_init(&value, drbg->v, sizeof(drbg->v)));
+    GUARD_AS_POSIX(s2n_blob_init(&value, drbg->v, sizeof(drbg->v)));
     int block_aligned_size = out->size - (out->size % S2N_DRBG_BLOCK_SIZE);
 
     /* Per NIST SP800-90A 10.2.1.2: */
@@ -114,9 +115,9 @@ static int s2n_drbg_seed(struct s2n_drbg *drbg, struct s2n_blob *ps)
     s2n_stack_blob(blob, s2n_drbg_seed_size(drbg), S2N_DRBG_MAX_SEED_SIZE);
 
     if (drbg->entropy_generator) {
-        GUARD(drbg->entropy_generator(&blob));
+        GUARD_AS_POSIX(drbg->entropy_generator(&blob));
     } else {
-        GUARD(s2n_get_urandom_data(&blob));
+        GUARD_AS_POSIX(s2n_get_urandom_data(&blob));
     }
 
     for (int i = 0; i < ps->size; i++) {
@@ -169,7 +170,7 @@ int s2n_drbg_instantiate(struct s2n_drbg *drbg, struct s2n_blob *personalization
 
     /* Copy the personalization string */
     s2n_stack_blob(ps, s2n_drbg_seed_size(drbg), S2N_DRBG_MAX_SEED_SIZE);
-    GUARD(s2n_blob_zero(&ps));
+    GUARD_AS_POSIX(s2n_blob_zero(&ps));
 
     memcpy_check(ps.data, personalization_string->data, MIN(ps.size, personalization_string->size));
 
@@ -177,7 +178,7 @@ int s2n_drbg_instantiate(struct s2n_drbg *drbg, struct s2n_blob *personalization
     GUARD(s2n_drbg_seed(drbg, &ps));
 
     /* After initial seeding, pivot to RDRAND if available and not overridden */
-    if (drbg->entropy_generator == NULL && s2n_cpu_supports_rdrand()) {
+    if (drbg->entropy_generator == NULL && s2n_result_is_ok(s2n_cpu_supports_rdrand())) {
         drbg->entropy_generator = s2n_get_rdrand_data;
     }
 

@@ -20,6 +20,7 @@
 #include "stuffer/s2n_stuffer.h"
 
 #include "utils/s2n_blob.h"
+#include "utils/s2n_result.h"
 
 /* Length of the synthetic message header */
 #define MESSAGE_HASH_HEADER_LENGTH  4
@@ -53,8 +54,8 @@ int s2n_conn_post_handshake_hashes_update(struct s2n_connection *conn)
         break;
     case SERVER_HELLO:
         GUARD(s2n_tls13_handle_handshake_secrets(conn));
-        GUARD(s2n_blob_zero(&client_seq));
-        GUARD(s2n_blob_zero(&server_seq));
+        GUARD_AS_POSIX(s2n_blob_zero(&client_seq));
+        GUARD_AS_POSIX(s2n_blob_zero(&server_seq));
         conn->server = &conn->secure;
         conn->client = &conn->secure;
         GUARD(s2n_stuffer_wipe(&conn->alert_in));
@@ -64,8 +65,8 @@ int s2n_conn_post_handshake_hashes_update(struct s2n_connection *conn)
         break;
     case CLIENT_FINISHED:
         /* Reset sequence numbers for Application Data */
-        GUARD(s2n_blob_zero(&client_seq));
-        GUARD(s2n_blob_zero(&server_seq));
+        GUARD_AS_POSIX(s2n_blob_zero(&client_seq));
+        GUARD_AS_POSIX(s2n_blob_zero(&server_seq));
         break;
     default:
         break;
@@ -119,7 +120,7 @@ int s2n_conn_update_handshake_hashes(struct s2n_connection *conn, struct s2n_blo
                                        s2n_handshake_is_hash_required(&conn->handshake, S2N_HASH_SHA1));
 
     if (md5_sha1_required) {
-        /* The MD5_SHA1 hash can still be used for TLS 1.0 and 1.1 in FIPS mode for 
+        /* The MD5_SHA1 hash can still be used for TLS 1.0 and 1.1 in FIPS mode for
          * the handshake hashes. This will only be used for the signature check in the
          * CertificateVerify message and the PRF. NIST SP 800-52r1 approves use
          * of MD5_SHA1 for these use cases (see footnotes 15 and 20, and section
@@ -178,11 +179,11 @@ int s2n_server_hello_retry_recreate_transcript(struct s2n_connection *conn)
 
     /* Step 2: Update the transcript with the synthetic message */
     struct s2n_blob msg_blob = {0};
-    GUARD(s2n_blob_init(&msg_blob, msghdr, MESSAGE_HASH_HEADER_LENGTH));
+    GUARD_AS_POSIX(s2n_blob_init(&msg_blob, msghdr, MESSAGE_HASH_HEADER_LENGTH));
     GUARD(s2n_conn_update_handshake_hashes(conn, &msg_blob));
 
     /* Step 3: Update the transcript with the ClientHello1 hash */
-    GUARD(s2n_blob_init(&msg_blob, client_hello1_digest_out, hash_digest_length));
+    GUARD_AS_POSIX(s2n_blob_init(&msg_blob, client_hello1_digest_out, hash_digest_length));
     GUARD(s2n_conn_update_handshake_hashes(conn, &msg_blob));
 
     return 0;

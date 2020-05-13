@@ -30,6 +30,7 @@
 #include "crypto/s2n_rsa.h"
 #include "crypto/s2n_pkey.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_random.h"
 
@@ -53,17 +54,17 @@ static int s2n_hybrid_client_action(struct s2n_connection *conn, struct s2n_blob
     notnull_check(client_key_exchange_message->data);
     const uint32_t start_cursor = *cursor;
 
-    DEFER_CLEANUP(struct s2n_blob shared_key_0 = {0}, s2n_free);
+    DEFER_CLEANUP(struct s2n_blob shared_key_0 = {0}, s2n_free_deferred);
     GUARD(kex_method(hybrid_kex_0, conn, &shared_key_0));
 
-    DEFER_CLEANUP(struct s2n_blob shared_key_1 = {0}, s2n_free);
+    DEFER_CLEANUP(struct s2n_blob shared_key_1 = {0}, s2n_free_deferred);
     GUARD(kex_method(hybrid_kex_1, conn, &shared_key_1));
 
     const uint32_t end_cursor = *cursor;
     gte_check(end_cursor, start_cursor);
     client_key_exchange_message->size = end_cursor - start_cursor;
 
-    GUARD(s2n_alloc(combined_shared_key, shared_key_0.size + shared_key_1.size));
+    GUARD_AS_POSIX(s2n_alloc(combined_shared_key, shared_key_0.size + shared_key_1.size));
     struct s2n_stuffer stuffer_combiner = {0};
     GUARD(s2n_stuffer_init(&stuffer_combiner, combined_shared_key));
     GUARD(s2n_stuffer_write(&stuffer_combiner, &shared_key_0));
@@ -77,9 +78,9 @@ static int calculate_keys(struct s2n_connection *conn, struct s2n_blob *shared_k
     /* Turn the pre-master secret into a master secret */
     GUARD(s2n_kex_tls_prf(conn->secure.cipher_suite->key_exchange_alg, conn, shared_key));
     /* Erase the pre-master secret */
-    GUARD(s2n_blob_zero(shared_key));
+    GUARD_AS_POSIX(s2n_blob_zero(shared_key));
     if (shared_key->allocated) {
-        GUARD(s2n_free(shared_key));
+        GUARD_AS_POSIX(s2n_free(shared_key));
     }
     /* Expand the keys */
     GUARD(s2n_prf_key_expansion(conn));
@@ -121,7 +122,7 @@ int s2n_rsa_client_key_recv(struct s2n_connection *conn, struct s2n_blob *shared
     gt_check(encrypted.size, 0);
 
     /* First: use a random pre-master secret */
-    GUARD(s2n_get_private_random_data(shared_key));
+    GUARD_AS_POSIX(s2n_get_private_random_data(shared_key));
     conn->secure.rsa_premaster_secret[0] = client_hello_protocol_version[0];
     conn->secure.rsa_premaster_secret[1] = client_hello_protocol_version[1];
 
@@ -220,7 +221,7 @@ int s2n_rsa_client_key_send(struct s2n_connection *conn, struct s2n_blob *shared
     shared_key->data = conn->secure.rsa_premaster_secret;
     shared_key->size = S2N_TLS_SECRET_LEN;
 
-    GUARD(s2n_get_private_random_data(shared_key));
+    GUARD_AS_POSIX(s2n_get_private_random_data(shared_key));
 
     /* Over-write the first two bytes with the client hello version, per RFC2246/RFC4346/RFC5246 7.4.7.1.
      * The latest version supported by client (as seen from the the client hello version) are <= TLS1.2

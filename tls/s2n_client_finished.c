@@ -23,6 +23,7 @@
 
 #include "stuffer/s2n_stuffer.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 int s2n_client_finished_recv(struct s2n_connection *conn)
@@ -43,7 +44,7 @@ int s2n_client_finished_send(struct s2n_connection *conn)
     GUARD(s2n_prf_client_finished(conn));
 
     struct s2n_blob seq = {.data = conn->secure.client_sequence_number,.size = sizeof(conn->secure.client_sequence_number) };
-    GUARD(s2n_blob_zero(&seq));
+    GUARD_AS_POSIX(s2n_blob_zero(&seq));
     our_version = conn->handshake.client_finished;
 
     /* Update the server to use the cipher suite */
@@ -65,7 +66,7 @@ int s2n_tls13_client_finished_recv(struct s2n_connection *conn) {
 
     /* read finished mac from handshake */
     struct s2n_blob wire_finished_mac = {0};
-    s2n_blob_init(&wire_finished_mac, s2n_stuffer_raw_read(&conn->handshake.io, length), length);
+    GUARD_AS_POSIX(s2n_blob_init(&wire_finished_mac, s2n_stuffer_raw_read(&conn->handshake.io, length), length));
 
     /* get tls13 keys */
     s2n_tls13_connection_keys(keys, conn);
@@ -75,7 +76,7 @@ int s2n_tls13_client_finished_recv(struct s2n_connection *conn) {
     GUARD(s2n_handshake_get_hash_state(conn, keys.hash_algorithm, &hash_state));
 
     struct s2n_blob finished_key = {0};
-    GUARD(s2n_blob_init(&finished_key, conn->handshake.client_finished, keys.size));
+    GUARD_AS_POSIX(s2n_blob_init(&finished_key, conn->handshake.client_finished, keys.size));
 
     s2n_tls13_key_blob(client_finished_mac, keys.size);
     GUARD(s2n_tls13_calculate_finished_mac(&keys, &finished_key, &hash_state, &client_finished_mac));
@@ -97,7 +98,7 @@ int s2n_tls13_client_finished_send(struct s2n_connection *conn) {
 
     /* look up finished secret key */
     struct s2n_blob finished_key = {0};
-    GUARD(s2n_blob_init(&finished_key, conn->handshake.client_finished, keys.size));
+    GUARD_AS_POSIX(s2n_blob_init(&finished_key, conn->handshake.client_finished, keys.size));
 
     /* generate the hashed message authenticated code */
     s2n_stack_blob(client_finished_mac, keys.size, S2N_TLS13_SECRET_MAX_LEN);

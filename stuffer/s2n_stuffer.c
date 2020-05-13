@@ -19,6 +19,7 @@
 
 #include "stuffer/s2n_stuffer.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_blob.h"
 #include "utils/s2n_mem.h"
@@ -27,7 +28,7 @@ bool s2n_stuffer_is_valid(const struct s2n_stuffer* stuffer)
 {
     /* Note that we do not assert any properties on the alloced, growable, and tainted fields,
      * as all possible combinations of boolean values in those fields are valid */
-    return S2N_OBJECT_PTR_IS_READABLE(stuffer) && 
+    return S2N_OBJECT_PTR_IS_READABLE(stuffer) &&
         s2n_blob_is_valid(&stuffer->blob) &&
         /* <= is valid because we can have a fully written/read stuffer */
         stuffer->high_water_mark <= stuffer->blob.size &&
@@ -48,9 +49,10 @@ int s2n_stuffer_init(struct s2n_stuffer *stuffer, struct s2n_blob *in)
     stuffer->tainted = 0;
     return 0;
 }
+
 int s2n_stuffer_alloc(struct s2n_stuffer *stuffer, const uint32_t size)
 {
-    GUARD(s2n_alloc(&stuffer->blob, size));
+    GUARD_AS_POSIX(s2n_alloc(&stuffer->blob, size));
     GUARD(s2n_stuffer_init(stuffer, &stuffer->blob));
 
     stuffer->alloced = 1;
@@ -70,7 +72,7 @@ int s2n_stuffer_growable_alloc(struct s2n_stuffer *stuffer, const uint32_t size)
 int s2n_stuffer_free(struct s2n_stuffer *stuffer)
 {
     if (stuffer->alloced) {
-        GUARD(s2n_free(&stuffer->blob));
+        GUARD_AS_POSIX(s2n_free(&stuffer->blob));
     }
     *stuffer = (struct s2n_stuffer) {0};
 
@@ -90,7 +92,7 @@ int s2n_stuffer_resize(struct s2n_stuffer *stuffer, const uint32_t size)
         GUARD(s2n_stuffer_wipe_n(stuffer, stuffer->blob.size - size));
     }
 
-    GUARD(s2n_realloc(&stuffer->blob, size));
+    GUARD_AS_POSIX(s2n_realloc(&stuffer->blob, size));
 
     return 0;
 }
@@ -138,7 +140,7 @@ int s2n_stuffer_wipe_n(struct s2n_stuffer *stuffer, const uint32_t size)
     stuffer->write_cursor -= size;
     memset_check(stuffer->blob.data + stuffer->write_cursor, S2N_WIPE_PATTERN, size);
     stuffer->read_cursor = MIN(stuffer->read_cursor, stuffer->write_cursor);
-    
+
     return 0;
 }
 
@@ -316,7 +318,7 @@ int s2n_stuffer_reserve_space(struct s2n_stuffer *stuffer, uint32_t n)
         /* Always grow a stuffer by at least 1k */
         const uint32_t growth = MAX(n - s2n_stuffer_space_remaining(stuffer), 1024);
         uint32_t new_size = 0;
-        GUARD(s2n_add_overflow(stuffer->blob.size, growth, &new_size));
+        GUARD_AS_POSIX(s2n_add_overflow(stuffer->blob.size, growth, &new_size));
         GUARD(s2n_stuffer_resize(stuffer, new_size));
     }
     return S2N_SUCCESS;
@@ -343,8 +345,8 @@ int s2n_stuffer_extract_blob(struct s2n_stuffer *stuffer, struct s2n_blob *out)
 {
     S2N_PRECONDITION(s2n_stuffer_is_valid(stuffer));
     notnull_check(out);
-    GUARD(s2n_free(out));
-    GUARD(s2n_alloc(out, s2n_stuffer_data_available(stuffer)));
+    GUARD_AS_POSIX(s2n_free(out));
+    GUARD_AS_POSIX(s2n_alloc(out, s2n_stuffer_data_available(stuffer)));
 
     if (s2n_stuffer_data_available(stuffer) > 0) {
         memcpy_check(out->data,

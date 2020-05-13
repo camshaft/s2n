@@ -22,6 +22,7 @@
 #include "crypto/s2n_hmac.h"
 
 #include "utils/s2n_blob.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_mem.h"
 
@@ -78,7 +79,7 @@ static int s2n_hkdf_expand(struct s2n_hmac_state *hmac, s2n_hmac_algorithm alg, 
         memcpy_check(output->data + done_len, prev, cat_len);
 
         done_len += cat_len;
-    
+
         GUARD(s2n_hmac_reset(hmac));
     }
 
@@ -98,7 +99,7 @@ int s2n_hkdf_expand_label(struct s2n_hmac_state *hmac, s2n_hmac_algorithm alg, c
     */
     lte_check(label->size, 12);
 
-    GUARD(s2n_blob_init(&hkdf_label_blob, hkdf_label_buf, sizeof(hkdf_label_buf)));
+    GUARD_AS_POSIX(s2n_blob_init(&hkdf_label_blob, hkdf_label_buf, sizeof(hkdf_label_buf)));
     GUARD(s2n_stuffer_init(&hkdf_label, &hkdf_label_blob));
     GUARD(s2n_stuffer_write_uint16(&hkdf_label, output->size));
     GUARD(s2n_stuffer_write_uint8(&hkdf_label, label->size + sizeof("tls13 ") - 1));

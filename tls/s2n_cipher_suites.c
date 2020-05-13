@@ -27,6 +27,7 @@
 #include "tls/s2n_security_policies.h"
 #include "tls/s2n_tls.h"
 #include "tls/s2n_tls13.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 /*************************
@@ -981,7 +982,7 @@ int s2n_cipher_suites_init(void)
         if (cur_suite->sslv3_record_alg && cur_suite->sslv3_record_alg->cipher->is_available()) {
             struct s2n_blob cur_suite_mem = { .data = (uint8_t *) cur_suite, .size = sizeof(struct s2n_cipher_suite) };
             struct s2n_blob new_suite_mem = { 0 };
-            GUARD(s2n_dup(&cur_suite_mem, &new_suite_mem));
+            GUARD_AS_POSIX(s2n_dup(&cur_suite_mem, &new_suite_mem));
 
             struct s2n_cipher_suite *new_suite = (struct s2n_cipher_suite *)(void *)new_suite_mem.data;
             new_suite->available = 1;
@@ -1013,7 +1014,7 @@ int s2n_cipher_suites_cleanup(void)
 
         /* Release custom SSLv3 cipher suites */
         if (cur_suite->sslv3_cipher_suite != cur_suite) {
-            GUARD(s2n_free_object((uint8_t **)&cur_suite->sslv3_cipher_suite, sizeof(struct s2n_cipher_suite)));
+            GUARD_AS_POSIX(s2n_free_object((uint8_t **)&cur_suite->sslv3_cipher_suite, sizeof(struct s2n_cipher_suite)));
         }
         cur_suite->sslv3_cipher_suite = NULL;
     }

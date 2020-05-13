@@ -26,6 +26,7 @@
 #include "../tls/extensions/s2n_certificate_extensions.h"
 #include "crypto/s2n_certificate.h"
 #include "utils/s2n_array.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_mem.h"
 
@@ -55,13 +56,13 @@ int s2n_create_cert_chain_from_stuffer(struct s2n_cert_chain *cert_chain_out, st
             break;
         }
         struct s2n_blob mem = {0};
-        GUARD(s2n_alloc(&mem, sizeof(struct s2n_cert)));
+        GUARD_AS_POSIX(s2n_alloc(&mem, sizeof(struct s2n_cert)));
         new_node = (struct s2n_cert *)(void *)mem.data;
 
-        GUARD(s2n_alloc(&new_node->raw, s2n_stuffer_data_available(&cert_out_stuffer)));
+        GUARD_AS_POSIX(s2n_alloc(&new_node->raw, s2n_stuffer_data_available(&cert_out_stuffer)));
         if (s2n_stuffer_read(&cert_out_stuffer, &new_node->raw) != S2N_SUCCESS) {
             GUARD(s2n_stuffer_free(&cert_out_stuffer));
-            GUARD(s2n_free(&mem));
+            GUARD_AS_POSIX(s2n_free(&mem));
             S2N_ERROR_PRESERVE_ERRNO();
         }
 
@@ -73,15 +74,15 @@ int s2n_create_cert_chain_from_stuffer(struct s2n_cert_chain *cert_chain_out, st
     } while (s2n_stuffer_data_available(chain_in_stuffer));
 
     GUARD(s2n_stuffer_free(&cert_out_stuffer));
-    
+
     /* Leftover data at this point means one of two things:
      * A bug in s2n's PEM parsing OR a malformed PEM in the user's chain.
      * Be conservative and fail instead of using a partial chain.
      */
     S2N_ERROR_IF(s2n_stuffer_data_available(chain_in_stuffer) > 0, S2N_ERR_INVALID_PEM);
-    
+
     cert_chain_out->chain_size = chain_size;
-    
+
     return 0;
 }
 
@@ -130,9 +131,9 @@ int s2n_cert_chain_and_key_set_private_key(struct s2n_cert_chain_and_key *cert_a
 int s2n_cert_chain_and_key_set_ocsp_data(struct s2n_cert_chain_and_key *chain_and_key, const uint8_t *data, uint32_t length)
 {
     notnull_check(chain_and_key);
-    GUARD(s2n_free(&chain_and_key->ocsp_status));
+    GUARD_AS_POSIX(s2n_free(&chain_and_key->ocsp_status));
     if (data && length) {
-        GUARD(s2n_alloc(&chain_and_key->ocsp_status, length));
+        GUARD_AS_POSIX(s2n_alloc(&chain_and_key->ocsp_status, length));
         memcpy_check(chain_and_key->ocsp_status.data, data, length);
     }
     return 0;
@@ -141,9 +142,9 @@ int s2n_cert_chain_and_key_set_ocsp_data(struct s2n_cert_chain_and_key *chain_an
 int s2n_cert_chain_and_key_set_sct_list(struct s2n_cert_chain_and_key *chain_and_key, const uint8_t *data, uint32_t length)
 {
     notnull_check(chain_and_key);
-    GUARD(s2n_free(&chain_and_key->sct_list));
+    GUARD_AS_POSIX(s2n_free(&chain_and_key->sct_list));
     if (data && length) {
-        GUARD(s2n_alloc(&chain_and_key->sct_list, length));
+        GUARD_AS_POSIX(s2n_alloc(&chain_and_key->sct_list, length));
         memcpy_check(chain_and_key->sct_list.data, data, length);
     }
     return 0;
@@ -154,14 +155,14 @@ struct s2n_cert_chain_and_key *s2n_cert_chain_and_key_new(void)
     struct s2n_cert_chain_and_key *chain_and_key;
     struct s2n_blob chain_and_key_mem, cert_chain_mem, pkey_mem;
 
-    GUARD_PTR(s2n_alloc(&chain_and_key_mem, sizeof(struct s2n_cert_chain_and_key)));
+    GUARD_RESULT_PTR(s2n_alloc(&chain_and_key_mem, sizeof(struct s2n_cert_chain_and_key)));
     chain_and_key = (struct s2n_cert_chain_and_key *)(void *)chain_and_key_mem.data;
 
     /* Allocate the memory for the chain and key */
-    GUARD_PTR(s2n_alloc(&cert_chain_mem, sizeof(struct s2n_cert_chain)));
+    GUARD_RESULT_PTR(s2n_alloc(&cert_chain_mem, sizeof(struct s2n_cert_chain)));
     chain_and_key->cert_chain = (struct s2n_cert_chain *)(void *)cert_chain_mem.data;
 
-    GUARD_PTR(s2n_alloc(&pkey_mem, sizeof(s2n_cert_private_key)));
+    GUARD_RESULT_PTR(s2n_alloc(&pkey_mem, sizeof(s2n_cert_private_key)));
     chain_and_key->private_key = (s2n_cert_private_key *)(void *)pkey_mem.data;
 
     chain_and_key->cert_chain->head = NULL;
@@ -210,7 +211,7 @@ int s2n_cert_chain_and_key_load_sans(struct s2n_cert_chain_and_key *chain_and_ke
                 S2N_ERROR(S2N_ERR_NULL_SANS);
             }
 
-            if (s2n_alloc(san_blob, san_str_len)) {
+            if (s2n_result_is_error(s2n_alloc(san_blob, san_str_len))) {
                 GENERAL_NAMES_free(san_names);
                 S2N_ERROR_PRESERVE_ERRNO();
             }
@@ -218,7 +219,7 @@ int s2n_cert_chain_and_key_load_sans(struct s2n_cert_chain_and_key *chain_and_ke
             memcpy_check(san_blob->data, san_str, san_str_len);
             san_blob->size = san_str_len;
             /* normalize san_blob to lowercase */
-            GUARD(s2n_blob_char_to_lower(san_blob));
+            GUARD_AS_POSIX(s2n_blob_char_to_lower(san_blob));
         }
     }
 
@@ -274,14 +275,14 @@ int s2n_cert_chain_and_key_load_cns(struct s2n_cert_chain_and_key *chain_and_key
                 S2N_ERROR(S2N_ERR_NULL_CN_NAME);
             }
 
-            if (s2n_alloc(cn_name, utf8_out_len) < 0) {
+            if (s2n_result_is_error(s2n_alloc(cn_name, utf8_out_len))) {
                 OPENSSL_free(utf8_str);
                 S2N_ERROR_PRESERVE_ERRNO();
             }
             memcpy_check(cn_name->data, utf8_str, utf8_out_len);
             cn_name->size = utf8_out_len;
             /* normalize cn_name to lowercase */
-            GUARD(s2n_blob_char_to_lower(cn_name));
+            GUARD_AS_POSIX(s2n_blob_char_to_lower(cn_name));
             OPENSSL_free(utf8_str);
         }
     }
@@ -342,44 +343,44 @@ int s2n_cert_chain_and_key_free(struct s2n_cert_chain_and_key *cert_and_key)
         struct s2n_cert *node = cert_and_key->cert_chain->head;
         while (node) {
             /* Free the cert */
-            GUARD(s2n_free(&node->raw));
+            GUARD_AS_POSIX(s2n_free(&node->raw));
             /* update head so it won't point to freed memory */
             cert_and_key->cert_chain->head = node->next;
             /* Free the node */
-            GUARD(s2n_free_object((uint8_t **)&node, sizeof(struct s2n_cert)));
+            GUARD_AS_POSIX(s2n_free_object((uint8_t **)&node, sizeof(struct s2n_cert)));
             node = cert_and_key->cert_chain->head;
         }
 
-        GUARD(s2n_free_object((uint8_t **)&cert_and_key->cert_chain, sizeof(struct s2n_cert_chain)));
+        GUARD_AS_POSIX(s2n_free_object((uint8_t **)&cert_and_key->cert_chain, sizeof(struct s2n_cert_chain)));
     }
 
     if (cert_and_key->private_key) {
         GUARD(s2n_pkey_free(cert_and_key->private_key));
-        GUARD(s2n_free_object((uint8_t **)&cert_and_key->private_key, sizeof(s2n_cert_private_key)));
+        GUARD_AS_POSIX(s2n_free_object((uint8_t **)&cert_and_key->private_key, sizeof(s2n_cert_private_key)));
     }
 
     if (cert_and_key->san_names) {
         for (int i = 0; i < s2n_array_num_elements(cert_and_key->san_names); i++) {
             struct s2n_blob *san_name = s2n_array_get(cert_and_key->san_names, i);
-            GUARD(s2n_free(san_name));
+            GUARD_AS_POSIX(s2n_free(san_name));
         }
-        GUARD(s2n_array_free(cert_and_key->san_names));
+        GUARD_AS_POSIX(s2n_array_free(cert_and_key->san_names));
         cert_and_key->san_names = NULL;
     }
 
     if (cert_and_key->cn_names) {
         for (int i = 0; i < s2n_array_num_elements(cert_and_key->cn_names); i++) {
             struct s2n_blob *cn_name = s2n_array_get(cert_and_key->cn_names, i);
-            GUARD(s2n_free(cn_name));
+            GUARD_AS_POSIX(s2n_free(cn_name));
         }
-        GUARD(s2n_array_free(cert_and_key->cn_names));
+        GUARD_AS_POSIX(s2n_array_free(cert_and_key->cn_names));
         cert_and_key->cn_names = NULL;
     }
 
-    GUARD(s2n_free(&cert_and_key->ocsp_status));
-    GUARD(s2n_free(&cert_and_key->sct_list));
+    GUARD_AS_POSIX(s2n_free(&cert_and_key->ocsp_status));
+    GUARD_AS_POSIX(s2n_free(&cert_and_key->sct_list));
 
-    GUARD(s2n_free_object((uint8_t **)&cert_and_key, sizeof(struct s2n_cert_chain_and_key)));
+    GUARD_AS_POSIX(s2n_free_object((uint8_t **)&cert_and_key, sizeof(struct s2n_cert_chain_and_key)));
     return 0;
 }
 

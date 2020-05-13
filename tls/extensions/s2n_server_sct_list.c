@@ -18,6 +18,7 @@
 #include "tls/s2n_tls.h"
 #include "tls/extensions/s2n_server_sct_list.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_blob.h"
 
@@ -55,7 +56,7 @@ int s2n_recv_server_sct_list(struct s2n_connection *conn, struct s2n_stuffer *ex
     sct_list.data = s2n_stuffer_raw_read(extension, sct_list.size);
     notnull_check(sct_list.data);
 
-    GUARD(s2n_dup(&sct_list, &conn->ct_response));
+    GUARD_AS_POSIX(s2n_dup(&sct_list, &conn->ct_response));
 
     return 0;
 }

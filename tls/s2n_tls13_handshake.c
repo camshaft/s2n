@@ -17,6 +17,8 @@
 #include "tls/s2n_cipher_suites.h"
 #include "tls/s2n_security_policies.h"
 
+#include "utils/s2n_result.h"
+
 int s2n_tls13_mac_verify(struct s2n_tls13_keys *keys, struct s2n_blob *finished_verify, struct s2n_blob *wire_verify)
 {
     notnull_check(wire_verify->data);
@@ -37,8 +39,8 @@ static int s2n_tls13_keys_init_with_ref(struct s2n_tls13_keys *handshake, s2n_hm
     handshake->hmac_algorithm = alg;
     GUARD(s2n_hmac_hash_alg(alg, &handshake->hash_algorithm));
     GUARD(s2n_hash_digest_size(handshake->hash_algorithm, &handshake->size));
-    GUARD(s2n_blob_init(&handshake->extract_secret, extract, handshake->size));
-    GUARD(s2n_blob_init(&handshake->derive_secret, derive, handshake->size));
+    GUARD_AS_POSIX(s2n_blob_init(&handshake->extract_secret, extract, handshake->size));
+    GUARD_AS_POSIX(s2n_blob_init(&handshake->derive_secret, derive, handshake->size));
     GUARD(s2n_hmac_new(&handshake->hmac));
 
     return 0;
@@ -97,12 +99,12 @@ int s2n_tls13_handle_handshake_secrets(struct s2n_connection *conn)
     const struct s2n_ecc_preferences *ecc_preferences = NULL;
     GUARD(s2n_connection_get_ecc_preferences(conn, &ecc_preferences));
     notnull_check(ecc_preferences);
-    
+
     /* get tls13 key context */
     s2n_tls13_connection_keys(secrets, conn);
 
     /* get shared secret */
-    DEFER_CLEANUP(struct s2n_blob shared_secret = { 0 }, s2n_free);
+    DEFER_CLEANUP(struct s2n_blob shared_secret = { 0 }, s2n_free_deferred);
     GUARD(s2n_tls13_compute_shared_secret(conn, &shared_secret));
 
     /* derive early secrets */

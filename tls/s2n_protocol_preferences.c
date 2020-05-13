@@ -15,13 +15,14 @@
 
 #include "tls/s2n_connection.h"
 #include "error/s2n_errno.h"
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 int s2n_blob_set_protocol_preferences(struct s2n_blob *application_protocols, const char *const *protocols, int protocol_count)
 {
     struct s2n_stuffer protocol_stuffer = {0};
 
-    GUARD(s2n_free(application_protocols));
+    GUARD_AS_POSIX(s2n_free(application_protocols));
 
     if (protocols == NULL || protocol_count == 0) {
         /* NULL value indicates no preference, so nothing to do */

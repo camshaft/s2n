@@ -30,6 +30,7 @@
 
 #include "crypto/s2n_dhe.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_random.h"
 
@@ -180,13 +181,13 @@ int s2n_kem_server_key_recv_parse_data(struct s2n_connection *conn, struct s2n_k
 
     const struct s2n_cipher_suite *cipher_suite = conn->secure.cipher_suite;
     const struct s2n_kem *match = NULL;
-    S2N_ERROR_IF(s2n_choose_kem_with_peer_pref_list(cipher_suite->iana_value, &kem_data->kem_name, kem_preferences->kems, 
+    S2N_ERROR_IF(s2n_choose_kem_with_peer_pref_list(cipher_suite->iana_value, &kem_data->kem_name, kem_preferences->kems,
                  kem_preferences->count, &match) != 0, S2N_ERR_KEM_UNSUPPORTED_PARAMS);
     conn->secure.kem_params.kem = match;
 
     S2N_ERROR_IF(kem_data->raw_public_key.size != conn->secure.kem_params.kem->public_key_length, S2N_ERR_BAD_MESSAGE);
 
-    s2n_dup(&kem_data->raw_public_key, &conn->secure.kem_params.public_key);
+    GUARD_AS_POSIX(s2n_dup(&kem_data->raw_public_key, &conn->secure.kem_params.public_key));
     return 0;
 }
 
@@ -330,11 +331,11 @@ static int s2n_write_signature_blob(struct s2n_stuffer *out, const struct s2n_pk
         s2n_signature_algorithm sig_alg, struct s2n_hash_state *digest)
 {
     struct s2n_blob signature = {0};
-    
+
     /* Leave signature length blank for now until we're done signing */
     uint16_t sig_len = 0;
     GUARD(s2n_stuffer_write_uint16(out, sig_len));
-    
+
     int max_signature_size = s2n_pkey_size(priv_key);
     signature.size = max_signature_size;
     signature.data = s2n_stuffer_raw_write(out, signature.size);

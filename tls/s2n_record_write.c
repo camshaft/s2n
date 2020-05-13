@@ -29,6 +29,7 @@
 #include "crypto/s2n_cipher.h"
 #include "crypto/s2n_hmac.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_random.h"
 #include "utils/s2n_blob.h"
@@ -293,7 +294,7 @@ int s2n_record_writev(struct s2n_connection *conn, uint8_t content_type, const s
     /* If we're AEAD, write the sequence number as an IV, and generate the AAD */
     if (cipher_suite->record_alg->cipher->type == S2N_AEAD) {
         struct s2n_stuffer iv_stuffer = {0};
-        s2n_blob_init(&iv, aad_iv, sizeof(aad_iv));
+        GUARD_AS_POSIX(s2n_blob_init(&iv, aad_iv, sizeof(aad_iv)));
         GUARD(s2n_stuffer_init(&iv_stuffer, &iv));
 
         if (cipher_suite->record_alg->flags & S2N_TLS12_AES_GCM_AEAD_NONCE) {
@@ -324,11 +325,11 @@ int s2n_record_writev(struct s2n_connection *conn, uint8_t content_type, const s
             GUARD(s2n_aead_aad_init(conn, sequence_number, content_type, data_bytes_to_take, &ad_stuffer));
         }
     } else if (cipher_suite->record_alg->cipher->type == S2N_CBC || cipher_suite->record_alg->cipher->type == S2N_COMPOSITE) {
-        s2n_blob_init(&iv, implicit_iv, block_size);
+        GUARD_AS_POSIX(s2n_blob_init(&iv, implicit_iv, block_size));
 
         /* For TLS1.1/1.2; write the IV with random data */
         if (conn->actual_protocol_version > S2N_TLS10) {
-            GUARD(s2n_get_public_random_data(&iv));
+            GUARD_AS_POSIX(s2n_get_public_random_data(&iv));
             GUARD(s2n_stuffer_write(&conn->out, &iv));
         }
     }

@@ -31,6 +31,7 @@
 #include "crypto/s2n_openssl.h"
 #include "crypto/s2n_fips.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_blob.h"
 #include "utils/s2n_mem.h"
@@ -100,7 +101,7 @@ static int s2n_evp_hmac_p_hash_digest_init(struct s2n_prf_working_space *ws)
     notnull_check(ws->tls.p_hash.evp_hmac.evp_digest.md);
     notnull_check(ws->tls.p_hash.evp_hmac.evp_digest.ctx);
     notnull_check(ws->tls.p_hash.evp_hmac.mac_key);
- 
+
     /* Ignore the MD5 check when in FIPS mode to comply with the TLS 1.0 RFC */
     if (s2n_is_in_fips_mode()) {
         GUARD(s2n_digest_allow_md5_for_fips(&ws->tls.p_hash.evp_hmac.evp_digest));
@@ -328,7 +329,7 @@ const struct s2n_p_hash_hmac *s2n_get_hmac_implementation() {
 
 int s2n_prf_new(struct s2n_connection *conn)
 {
-    /* Set p_hash_hmac_impl on initial prf creation. 
+    /* Set p_hash_hmac_impl on initial prf creation.
      * When in FIPS mode, the EVP API's must be used for the p_hash HMAC.
      */
     conn->prf_space.tls.p_hash_hmac_impl = s2n_get_hmac_implementation();
@@ -338,7 +339,7 @@ int s2n_prf_new(struct s2n_connection *conn)
 
 int s2n_prf_free(struct s2n_connection *conn)
 {
-    /* Ensure that p_hash_hmac_impl is set, as it may have been reset for prf_space on s2n_connection_wipe. 
+    /* Ensure that p_hash_hmac_impl is set, as it may have been reset for prf_space on s2n_connection_wipe.
      * When in FIPS mode, the EVP API's must be used for the p_hash HMAC.
      */
     conn->prf_space.tls.p_hash_hmac_impl = s2n_get_hmac_implementation();
@@ -363,9 +364,9 @@ static int s2n_prf(struct s2n_connection *conn, struct s2n_blob *secret, struct 
      * the right values. When we call it twice in the regular case, the two
      * outputs will be XORd just ass the TLS 1.0 and 1.1 RFCs require.
      */
-    GUARD(s2n_blob_zero(out));
+    GUARD_AS_POSIX(s2n_blob_zero(out));
 
-    /* Ensure that p_hash_hmac_impl is set, as it may have been reset for prf_space on s2n_connection_wipe. 
+    /* Ensure that p_hash_hmac_impl is set, as it may have been reset for prf_space on s2n_connection_wipe.
      * When in FIPS mode, the EVP API's must be used for the p_hash HMAC.
      */
     conn->prf_space.tls.p_hash_hmac_impl = s2n_get_hmac_implementation();
@@ -617,7 +618,7 @@ int s2n_prf_key_expansion(struct s2n_connection *conn)
 
     label.data = key_expansion_label;
     label.size = sizeof(key_expansion_label) - 1;
-    GUARD(s2n_blob_init(&out, key_block, sizeof(key_block)));
+    GUARD_AS_POSIX(s2n_blob_init(&out, key_block, sizeof(key_block)));
 
     struct s2n_stuffer key_material = {0};
     GUARD(s2n_prf(conn, &master_secret, &label, &server_random, &client_random, NULL, &out));
@@ -653,7 +654,7 @@ int s2n_prf_key_expansion(struct s2n_connection *conn)
     /* Make the server key */
     GUARD(s2n_prf_make_server_key(conn, &key_material));
 
-    /* Composite CBC does MAC inside the cipher, pass it the MAC key. 
+    /* Composite CBC does MAC inside the cipher, pass it the MAC key.
      * Must happen after setting encryption/decryption keys.
      */
     if (conn->secure.cipher_suite->record_alg->cipher->type == S2N_COMPOSITE) {

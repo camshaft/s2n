@@ -33,6 +33,7 @@
 
 #include "stuffer/s2n_stuffer.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_socket.h"
 #include "utils/s2n_safety.h"
 #include "utils/s2n_blob.h"
@@ -56,7 +57,7 @@ int s2n_read_full_record(struct s2n_connection *conn, uint8_t * record_type, int
         int remaining = S2N_TLS_RECORD_HEADER_LENGTH - s2n_stuffer_data_available(&conn->header_in);
 
         if (s2n_connection_is_managed_corked(conn)) {
-            GUARD(s2n_socket_set_read_size(conn, remaining));
+            GUARD_AS_POSIX(s2n_socket_set_read_size(conn, remaining));
         }
 
         errno = 0;
@@ -95,7 +96,7 @@ int s2n_read_full_record(struct s2n_connection *conn, uint8_t * record_type, int
         int remaining = fragment_length - s2n_stuffer_data_available(&conn->in);
 
         if (s2n_connection_is_managed_corked(conn)) {
-            GUARD(s2n_socket_set_read_size(conn, remaining));
+            GUARD_AS_POSIX(s2n_socket_set_read_size(conn, remaining));
         }
 
         errno = 0;

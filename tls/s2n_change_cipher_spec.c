@@ -23,6 +23,7 @@
 
 #include "stuffer/s2n_stuffer.h"
 
+#include "utils/s2n_result.h"
 #include "utils/s2n_safety.h"
 
 /* From RFC5246 7.1: https://tools.ietf.org/html/rfc5246#section-7.1 */
@@ -44,7 +45,7 @@ int s2n_client_ccs_recv(struct s2n_connection *conn)
 
     /* Zero the sequence number */
     struct s2n_blob seq = {.data = conn->secure.client_sequence_number,.size = sizeof(conn->secure.client_sequence_number) };
-    GUARD(s2n_blob_zero(&seq));
+    GUARD_AS_POSIX(s2n_blob_zero(&seq));
 
     /* Compute the finished message */
     GUARD(s2n_prf_client_finished(conn));
@@ -66,7 +67,7 @@ int s2n_server_ccs_recv(struct s2n_connection *conn)
 
     /* Zero the sequence number */
     struct s2n_blob seq = {.data = conn->secure.server_sequence_number,.size = sizeof(conn->secure.server_sequence_number) };
-    GUARD(s2n_blob_zero(&seq));
+    GUARD_AS_POSIX(s2n_blob_zero(&seq));
 
     /* Compute the finished message */
     GUARD(s2n_prf_server_finished(conn));
