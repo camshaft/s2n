@@ -34,7 +34,19 @@
 
 #define __S2N_ENSURE_LIKELY( cond, action ) do {if ( s2n_unlikely( !(cond) ) ) { action; }} while (0)
 
-#define __S2N_ENSURE_CONDITION( cond, action ) __S2N_ENSURE_LIKELY( cond, action )
+#ifdef NDEBUG
+#define __S2N_ENSURE_DEBUG( cond, action ) do {} while (0)
+#else
+#define __S2N_ENSURE_DEBUG( cond, action ) __S2N_ENSURE_LIKELY((cond), action)
+#endif
+
+#define __S2N_ENSURE_PRECONDITION( cond ) (cond)
+
+#ifdef NDEBUG
+#define __S2N_ENSURE_POSTCONDITION( cond ) S2N_RESULT_OK
+#else
+#define __S2N_ENSURE_POSTCONDITION( cond ) (cond)
+#endif
 
 #define __S2N_ENSURE_SAFE_MEMCPY( d , s , n , guard )                            \
   do {                                                                           \

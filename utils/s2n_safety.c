@@ -194,7 +194,7 @@ int s2n_in_unit_test_set(bool newval)
 int s2n_align_to(uint32_t initial, uint32_t alignment, uint32_t* out)
 {
     notnull_check(out);
-    PRECONDITION_POSIX(alignment != 0);
+    ENSURE_POSIX(alignment != 0, S2N_ERR_SAFETY);
     if (initial == 0) {
         *out = 0;
         return S2N_SUCCESS;
