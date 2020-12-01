@@ -65,7 +65,7 @@ S2N_RESULT s2n_stuffer_reservation_validate(const struct s2n_stuffer_reservation
 
 int s2n_stuffer_init(struct s2n_stuffer *stuffer, struct s2n_blob *in)
 {
-    ENSURE_POSIX_REF(stuffer);
+    ENSURE_POSIX_MUT(stuffer);
     PRECONDITION_POSIX(s2n_blob_validate(in));
     stuffer->blob = *in;
     stuffer->read_cursor = 0;
