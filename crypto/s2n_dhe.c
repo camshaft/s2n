@@ -134,7 +134,7 @@ int s2n_check_all_dh_params(struct s2n_dh_params *dh_params)
 int s2n_pkcs3_to_dh_params(struct s2n_dh_params *dh_params, struct s2n_blob *pkcs3)
 {
     notnull_check(dh_params);
-    PRECONDITION_POSIX(s2n_blob_is_valid(pkcs3));
+    PRECONDITION_POSIX(s2n_blob_validate(pkcs3));
 
     uint8_t *original_ptr = pkcs3->data;
     dh_params->dh         = d2i_DHparams(NULL, ( const unsigned char ** )( void * )&pkcs3->data, pkcs3->size);
