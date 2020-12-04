@@ -50,7 +50,7 @@ S2N_RESULT s2n_stuffer_reservation_validate(const struct s2n_stuffer_reservation
     const struct s2n_stuffer_reservation reserve_obj = *reservation;
     GUARD_RESULT(s2n_stuffer_validate(reserve_obj.stuffer));
     const struct s2n_stuffer stuffer_obj = *(reserve_obj.stuffer);
-    ENSURE(stuffer_obj.blob.size < reserve_obj.length, S2N_ERR_SAFETY);
+    ENSURE(stuffer_obj.blob.size >= reserve_obj.length, S2N_ERR_SAFETY);
 
     if (reserve_obj.length > 0) {
         ENSURE(reserve_obj.write_cursor < stuffer_obj.write_cursor, S2N_ERR_SAFETY);
