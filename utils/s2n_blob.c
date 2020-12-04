@@ -29,8 +29,8 @@ S2N_RESULT s2n_blob_validate(const struct s2n_blob* b)
     ENSURE_REF(b);
     DEBUG_ENSURE(S2N_IMPLIES(b->data == NULL, b->size == 0), S2N_ERR_SAFETY);
     DEBUG_ENSURE(S2N_IMPLIES(b->data == NULL, b->allocated == 0), S2N_ERR_SAFETY);
-    DEBUG_ENSURE(S2N_IMPLIES(b->growable, b->allocated == 0), S2N_ERR_SAFETY);
-    DEBUG_ENSURE(S2N_IMPLIES(!b->growable, b->size <= b->allocated), S2N_ERR_SAFETY);
+    DEBUG_ENSURE(S2N_IMPLIES(b->growable == 0, b->allocated == 0), S2N_ERR_SAFETY);
+    DEBUG_ENSURE(S2N_IMPLIES(b->growable != 0, b->size <= b->allocated), S2N_ERR_SAFETY);
     DEBUG_ENSURE(S2N_MEM_IS_READABLE(b->data, b->allocated), S2N_ERR_SAFETY);
     DEBUG_ENSURE(S2N_MEM_IS_READABLE(b->data, b->size), S2N_ERR_SAFETY);
     return S2N_RESULT_OK;
