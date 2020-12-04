@@ -514,7 +514,6 @@ int s2n_hash_new(struct s2n_hash_state *state)
     notnull_check(state->hash_impl->alloc);
 
     GUARD(state->hash_impl->alloc(state));
-    POSTCONDITION_POSIX(s2n_hash_state_validate(state));
     return S2N_SUCCESS;
 }
 
