@@ -41,12 +41,7 @@
 #endif
 
 #define __S2N_ENSURE_PRECONDITION( cond ) (cond)
-
-#ifdef NDEBUG
-#define __S2N_ENSURE_POSTCONDITION( cond ) S2N_RESULT_OK
-#else
 #define __S2N_ENSURE_POSTCONDITION( cond ) (cond)
-#endif
 
 #define __S2N_ENSURE_SAFE_MEMCPY( d , s , n , guard )                            \
   do {                                                                           \
