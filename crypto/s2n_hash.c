@@ -102,7 +102,7 @@ bool s2n_hash_is_available(s2n_hash_algorithm alg)
 
 int s2n_hash_is_ready_for_input(struct s2n_hash_state *state)
 {
-    ENSURE_POSIX(s2n_hash_state_is_valid(state), S2N_ERR_PRECONDITION_VIOLATION);
+    PRECONDITION_POSIX(s2n_hash_state_validate(state));
     return state->is_ready_for_input;
 }
 
@@ -514,7 +514,7 @@ int s2n_hash_new(struct s2n_hash_state *state)
     notnull_check(state->hash_impl->alloc);
 
     GUARD(state->hash_impl->alloc(state));
-    ENSURE_POSIX(s2n_hash_state_is_valid(state), S2N_ERR_PRECONDITION_VIOLATION);
+    POSTCONDITION_POSIX(s2n_hash_state_validate(state));
     return S2N_SUCCESS;
 }
 
@@ -564,7 +564,7 @@ int s2n_hash_init(struct s2n_hash_state *state, s2n_hash_algorithm alg)
 
 int s2n_hash_update(struct s2n_hash_state *state, const void *data, uint32_t size)
 {
-    ENSURE_POSIX(s2n_hash_state_is_valid(state), S2N_ERR_PRECONDITION_VIOLATION);
+    PRECONDITION_POSIX(s2n_hash_state_validate(state));
     ENSURE_POSIX(S2N_MEM_IS_READABLE(data, size), S2N_ERR_PRECONDITION_VIOLATION);
     notnull_check(state->hash_impl->update);
 
@@ -573,7 +573,7 @@ int s2n_hash_update(struct s2n_hash_state *state, const void *data, uint32_t siz
 
 int s2n_hash_digest(struct s2n_hash_state *state, void *out, uint32_t size)
 {
-    ENSURE_POSIX(s2n_hash_state_is_valid(state), S2N_ERR_PRECONDITION_VIOLATION);
+    PRECONDITION_POSIX(s2n_hash_state_validate(state));
     ENSURE_POSIX(S2N_MEM_IS_READABLE(out, size), S2N_ERR_PRECONDITION_VIOLATION);
     notnull_check(state->hash_impl->digest);
 
@@ -582,8 +582,8 @@ int s2n_hash_digest(struct s2n_hash_state *state, void *out, uint32_t size)
 
 int s2n_hash_copy(struct s2n_hash_state *to, struct s2n_hash_state *from)
 {
-    ENSURE_POSIX(s2n_hash_state_is_valid(to), S2N_ERR_PRECONDITION_VIOLATION);
-    ENSURE_POSIX(s2n_hash_state_is_valid(from), S2N_ERR_PRECONDITION_VIOLATION);
+    PRECONDITION_POSIX(s2n_hash_state_validate(to));
+    PRECONDITION_POSIX(s2n_hash_state_validate(from));
     notnull_check(from->hash_impl->copy);
 
     return from->hash_impl->copy(to, from);
@@ -620,7 +620,7 @@ int s2n_hash_free(struct s2n_hash_state *state)
 
 int s2n_hash_get_currently_in_hash_total(struct s2n_hash_state *state, uint64_t *out)
 {
-    ENSURE_POSIX(s2n_hash_state_is_valid(state), S2N_ERR_PRECONDITION_VIOLATION);
+    PRECONDITION_POSIX(s2n_hash_state_validate(state));
     ENSURE_POSIX(S2N_MEM_IS_READABLE(out, sizeof(*out)), S2N_ERR_PRECONDITION_VIOLATION);
     ENSURE_POSIX(state->is_ready_for_input, S2N_ERR_HASH_NOT_READY);
 
@@ -632,7 +632,7 @@ int s2n_hash_get_currently_in_hash_total(struct s2n_hash_state *state, uint64_t 
 /* Calculate, in constant time, the number of bytes currently in the hash_block */
 int s2n_hash_const_time_get_currently_in_hash_block(struct s2n_hash_state *state, uint64_t *out)
 {
-    ENSURE_POSIX(s2n_hash_state_is_valid(state), S2N_ERR_PRECONDITION_VIOLATION);
+    PRECONDITION_POSIX(s2n_hash_state_validate(state));
     ENSURE_POSIX(S2N_MEM_IS_READABLE(out, sizeof(*out)), S2N_ERR_PRECONDITION_VIOLATION);
     ENSURE_POSIX(state->is_ready_for_input, S2N_ERR_HASH_NOT_READY);
     uint64_t hash_block_size;
