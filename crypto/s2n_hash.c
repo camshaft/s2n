@@ -518,7 +518,12 @@ int s2n_hash_new(struct s2n_hash_state *state)
     return S2N_SUCCESS;
 }
 
-bool s2n_hash_state_is_valid(struct s2n_hash_state *state) { return (state != NULL) && (state->hash_impl != NULL); }
+S2N_RESULT s2n_hash_state_validate(struct s2n_hash_state *state)
+{
+    ENSURE_REF(state);
+    ENSURE_REF(state->hash_impl);
+    return S2N_RESULT_OK;
+}
 
 int s2n_hash_allow_md5_for_fips(struct s2n_hash_state *state)
 {
