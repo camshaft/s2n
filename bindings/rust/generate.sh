@@ -4,6 +4,7 @@
 
 # cd into the script directory so it can be executed from anywhere
 cd "$(dirname "${BASH_SOURCE[0]}")"
+ARGS="$@"
 
 mkdir -p s2n-tls-sys/lib
 
@@ -20,7 +21,7 @@ cp -r \
   s2n-tls-sys/lib/
 
 # generate the bindings modules from the copied sources
-cd generate && cargo run -- ../s2n-tls-sys && cd ..
+cd generate && cargo run -- ../s2n-tls-sys $ARGS && cd ..
 
 # make sure everything builds and passes sanity checks
 cd s2n-tls-sys \

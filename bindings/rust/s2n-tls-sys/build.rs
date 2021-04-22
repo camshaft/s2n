@@ -23,6 +23,11 @@ fn main() {
         true
     }));
 
+    // If the build was generated with internal bindings include them
+    if std::path::Path::new("src/internal.rs").exists() {
+        println!("cargo:rustc-cfg=s2n_sys_internal_api");
+    }
+
     build
         // pull the include path from the openssl-sys dependency
         .include(env("DEP_OPENSSL_INCLUDE"))

@@ -10,6 +10,14 @@ fn main() {
     let out_dir = std::env::args().nth(1).expect("missing sys dir");
     let out_dir = Path::new(&out_dir);
 
+    if std::env::args().nth(2).as_deref() == Some("--internal") {
+        gen_internal(
+            &out_dir.join("lib"),
+            &out_dir.join("src").join("internal.rs"),
+        )
+        .unwrap();
+    }
+
     gen_bindings("#include <s2n.h>", &out_dir.join("lib"))
         .allowlist_type("s2n_.*")
         .allowlist_function("s2n_.*")
@@ -50,7 +58,7 @@ const COPYRIGHT: &str = r#"
 "#;
 
 const PRELUDE: &str = r#"
-#![allow(unused_imports, non_camel_case_types)]
+#![allow(unused_imports, non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
 use libc::{iovec, FILE};
 "#;
@@ -58,15 +66,13 @@ use libc::{iovec, FILE};
 fn gen_bindings(entry: &str, s2n_dir: &Path) -> bindgen::Builder {
     let builder = bindgen::Builder::default()
         .use_core()
-        .layout_tests(true)
+        .layout_tests(false)
         .detect_include_paths(true)
         .size_t_is_usize(true)
         .rustfmt_bindings(true)
         .header_contents("s2n-sys.h", entry)
         .enable_function_attribute_detection()
-        .default_enum_style(bindgen::EnumVariation::Rust {
-            non_exhaustive: true,
-        })
+        .default_enum_style(bindgen::EnumVariation::ModuleConsts)
         .rust_target(bindgen::RustTarget::Stable_1_40)
         // only export s2n-related stuff
         .blocklist_type("iovec")
@@ -76,11 +82,9 @@ fn gen_bindings(entry: &str, s2n_dir: &Path) -> bindgen::Builder {
         // rust can't access thread-local variables
         // https://github.com/rust-lang/rust/issues/29594
         .blocklist_item("s2n_errno")
-        .rustified_enum("s2n_.*")
         .raw_line(COPYRIGHT)
         .raw_line(PRELUDE)
         .ctypes_prefix("::libc")
-        .parse_callbacks(Box::new(S2nCallbacks::default()))
         .clang_arg(format!("-I{}/api", s2n_dir.display()))
         .clang_arg(format!("-I{}", s2n_dir.display()));
     builder
@@ -105,36 +109,31 @@ fn gen_files(input: &Path, out: &Path) -> io::Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Default)]
-struct S2nCallbacks;
+fn gen_internal(input: &Path, out: &Path) -> io::Result<()> {
+    use std::fmt::Write;
 
-impl bindgen::callbacks::ParseCallbacks for S2nCallbacks {
-    fn enum_variant_name(
-        &self,
-        _enum_name: Option<&str>,
-        variant_name: &str,
-        _variant_value: bindgen::callbacks::EnumVariantValue,
-    ) -> Option<String> {
-        use heck::CamelCase;
+    let pattern = format!("{}/**/*.h", input.display());
 
-        if !variant_name.starts_with("S2N_") {
-            return None;
+    let mut headers = String::new();
+    for header in glob::glob(&pattern).unwrap() {
+        let header = header.unwrap();
+        let header = header.strip_prefix(input).unwrap();
+        if header.starts_with("pq-crypto") {
+            continue;
         }
-
-        let variant_name = variant_name
-            .trim_start_matches("S2N_ERR_T_")
-            .trim_start_matches("S2N_EXTENSION_")
-            // keep the LEN_ so it's a valid identifier
-            .trim_start_matches("S2N_TLS_MAX_FRAG_")
-            .trim_start_matches("S2N_ALERT_")
-            .trim_start_matches("S2N_CT_SUPPORT_")
-            .trim_start_matches("S2N_STATUS_REQUEST_")
-            .trim_start_matches("S2N_CERT_AUTH_")
-            // match everything else
-            .trim_start_matches("S2N_");
-
-        Some(variant_name.to_camel_case())
+        writeln!(headers, "#include {:?}", header).unwrap();
     }
+
+    gen_bindings(&headers, input)
+        .raw_line("use libc::{pid_t as __pid_t, c_int as __sig_atomic_t};")
+        .allowlist_type("s2n_.*")
+        .allowlist_function("s2n_.*")
+        .allowlist_var("s2n_.*")
+        .generate()
+        .unwrap()
+        .write_to_file(out)?;
+
+    Ok(())
 }
 
 #[derive(Clone, Debug, Default)]
