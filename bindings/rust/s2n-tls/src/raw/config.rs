@@ -2,45 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::raw::{
+    connection::Connection,
     error::{Error, Fallible},
     security,
 };
-use alloc::sync::Arc;
 use core::{convert::TryInto, ptr::NonNull};
 use s2n_tls_sys::*;
-use std::ffi::CString;
+use std::{
+    ffi::{c_void, CString},
+    mem::ManuallyDrop,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
-struct Owned(NonNull<s2n_config>);
-
-/// Safety: s2n_config objects can be sent across threads
-unsafe impl Send for Owned {}
-
-impl Default for Owned {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Owned {
-    fn new() -> Self {
-        crate::raw::init::init();
-        let config = unsafe { s2n_config_new().into_result() }.unwrap();
-        Self(config)
-    }
-
-    pub(crate) fn as_mut_ptr(&mut self) -> *mut s2n_config {
-        self.0.as_ptr()
-    }
-}
-
-impl Drop for Owned {
-    fn drop(&mut self) {
-        let _ = unsafe { s2n_config_free(self.0.as_ptr()).into_result() };
-    }
-}
-
-#[derive(Clone, Default)]
-pub struct Config(Arc<Owned>);
+pub struct Config(NonNull<s2n_config>);
 
 /// Safety: s2n_config objects can be sent across threads
 #[allow(unknown_lints, clippy::non_send_fields_in_send_ty)]
@@ -55,17 +29,70 @@ impl Config {
         Builder::default()
     }
 
+    // # Safety
+    //
+    // This config _MUST_ have been initialized with a [`Builder`].
+    pub unsafe fn from_raw(config: NonNull<s2n_config>) -> Self {
+        Self(config)
+    }
+
     pub(crate) fn as_mut_ptr(&mut self) -> *mut s2n_config {
-        (self.0).0.as_ptr()
+        (self.0).as_ptr()
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Builder::new().build().unwrap()
+    }
+}
+
+impl Clone for Config {
+    fn clone(&self) -> Self {
+        unsafe {
+            let context = s2n_config_get_ctx(self.0.as_ptr()).into_result().unwrap();
+            let context = &*(context.as_ptr() as *const AtomicUsize);
+            context.fetch_add(1, Ordering::Relaxed);
+            Self(self.0)
+        }
+    }
+}
+
+impl Drop for Config {
+    fn drop(&mut self) {
+        unsafe {
+            let context = s2n_config_get_ctx(self.0.as_ptr()).into_result().unwrap();
+            let context = &*(context.as_ptr() as *const AtomicUsize);
+            let count = context.fetch_sub(1, Ordering::Release);
+
+            if count > 1 {
+                return;
+            }
+
+            std::sync::atomic::fence(Ordering::Acquire);
+
+            let _ = s2n_config_free(self.0.as_ptr()).into_result();
+        }
     }
 }
 
 #[derive(Default)]
-pub struct Builder(Owned);
+pub struct Builder(Config);
 
 impl Builder {
     pub fn new() -> Self {
-        Default::default()
+        crate::raw::init::init();
+        let config = unsafe { s2n_config_new().into_result() }.unwrap();
+
+        let refcount: Box<AtomicUsize> = Default::default();
+        let refcount = Box::into_raw(refcount) as *mut c_void;
+        unsafe {
+            s2n_config_set_ctx(config.as_ptr(), refcount)
+                .into_result()
+                .unwrap();
+        }
+
+        Self(Config(config))
     }
 
     pub fn set_alert_behavior(
@@ -185,8 +212,52 @@ impl Builder {
         Ok(self)
     }
 
+    pub fn set_client_hello_handler<T: ClientHelloHandler>(
+        &mut self,
+        handler: T,
+    ) -> Result<&mut Self, Error> {
+        use core::task::Poll;
+
+        unsafe extern "C" fn client_hello_cb<T: ClientHelloHandler>(
+            connection_ptr: *mut s2n_connection,
+            context: *mut core::ffi::c_void,
+        ) -> libc::c_int {
+            let handler = &*(context as *const T);
+            let connection_ptr =
+                NonNull::new(connection_ptr).expect("connection should not be null");
+            let mut connection = ManuallyDrop::new(Connection::from_raw(connection_ptr));
+
+            match handler.poll_client_hello(&mut connection) {
+                Poll::Ready(Ok(())) => {
+                    s2n_client_hello_cb_done(connection_ptr.as_ptr());
+                    0
+                }
+                Poll::Ready(Err(_)) => {
+                    s2n_client_hello_cb_done(connection_ptr.as_ptr());
+                    -1
+                }
+                Poll::Pending => 0,
+            }
+        }
+
+        let context = Box::new(handler);
+        let context = Box::into_raw(context) as *mut core::ffi::c_void;
+
+        unsafe {
+            s2n_config_set_client_hello_cb_mode(
+                self.as_mut_ptr(),
+                s2n_client_hello_cb_mode::NONBLOCKING,
+            )
+            .into_result()?;
+            s2n_config_set_client_hello_cb(self.as_mut_ptr(), Some(client_hello_cb::<T>), context)
+                .into_result()?;
+        }
+
+        Ok(self)
+    }
+
     pub fn build(self) -> Result<Config, Error> {
-        Ok(Config(Arc::new(self.0)))
+        Ok(self.0)
     }
 
     fn as_mut_ptr(&mut self) -> *mut s2n_config {
@@ -200,4 +271,8 @@ impl Builder {
         unsafe { s2n_tls_sys::s2n_config_enable_quic(self.as_mut_ptr()).into_result() }?;
         Ok(self)
     }
+}
+
+pub trait ClientHelloHandler: Send + Sync {
+    fn poll_client_hello(&self, connection: &mut Connection) -> core::task::Poll<Result<(), ()>>;
 }

@@ -448,6 +448,10 @@ int s2n_connection_set_config(struct s2n_connection *conn, struct s2n_config *co
     return S2N_SUCCESS;
 }
 
+struct s2n_config *s2n_connection_get_config(struct s2n_connection *conn) {
+    return conn->config;
+}
+
 int s2n_connection_server_name_extension_used(struct s2n_connection *conn)
 {
 

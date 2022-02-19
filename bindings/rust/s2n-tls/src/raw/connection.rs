@@ -16,9 +16,6 @@ pub use s2n_tls_sys::s2n_mode;
 
 pub struct Connection {
     connection: NonNull<s2n_connection>,
-    // The config needs to be stored so the reference count is accurate
-    #[allow(dead_code)]
-    config: Option<Config>,
 }
 
 impl fmt::Debug for Connection {
@@ -36,17 +33,19 @@ impl Connection {
     pub fn new(mode: s2n_mode::Type) -> Self {
         crate::raw::init::init();
         let connection = unsafe { s2n_connection_new(mode).into_result() }.unwrap();
-        Self {
-            connection,
-            config: None,
-        }
+        Self { connection }
     }
+
     pub fn new_client() -> Self {
         Self::new(s2n_mode::CLIENT)
     }
 
     pub fn new_server() -> Self {
         Self::new(s2n_mode::SERVER)
+    }
+
+    pub unsafe fn from_raw(connection: NonNull<s2n_connection>) -> Self {
+        Self { connection }
     }
 
     /// can be used to configure s2n to either use built-in blinding (set blinding
@@ -76,9 +75,10 @@ impl Connection {
     /// Associates a configuration object with a connection.
     pub fn set_config(&mut self, mut config: Config) -> Result<&mut Self, Error> {
         unsafe {
-            s2n_connection_set_config(self.connection.as_ptr(), config.as_mut_ptr()).into_result()
-        }?;
-        self.config = Some(config);
+            self.drop_config()?;
+            s2n_connection_set_config(self.connection.as_ptr(), config.as_mut_ptr())
+                .into_result()?;
+        }
         Ok(self)
     }
 
@@ -243,6 +243,17 @@ impl Connection {
         unsafe { s2n_set_server_name(self.connection.as_ptr(), sni.as_ptr()).into_result() }?;
         Ok(self)
     }
+
+    /// Drops the config on the connection
+    unsafe fn drop_config(&mut self) -> Result<(), Error> {
+        if let Ok(prev_config) = s2n_connection_get_config(self.connection.as_ptr()).into_result() {
+            drop(Config::from_raw(prev_config));
+        }
+
+        s2n_connection_set_config(self.connection.as_ptr(), core::ptr::null_mut()).into_result()?;
+
+        Ok(())
+    }
 }
 
 #[cfg(feature = "quic")]
@@ -296,6 +307,9 @@ impl Connection {
 impl Drop for Connection {
     fn drop(&mut self) {
         // ignore failures since there's not much we can do about it
-        let _ = unsafe { s2n_connection_free(self.connection.as_ptr()).into_result() };
+        unsafe {
+            let _ = self.drop_config();
+            let _ = s2n_connection_free(self.connection.as_ptr()).into_result();
+        }
     }
 }
